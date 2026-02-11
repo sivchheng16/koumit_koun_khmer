@@ -443,9 +443,7 @@ const GameLevel: React.FC<GameLevelProps> = ({ level, onBack, onNext, onComplete
             {isRobot && (
               <div 
                 className="absolute z-20 transition-transform duration-300 ease-in-out flex items-center justify-center"
-                style={{
-                  transform: gameStatus === 'failure' ? 'scale(1.2)' : `rotate(${robotDir * 90}deg)`
-                }}
+               
               >
                 {gameStatus === 'failure' ? (
                    <div className="text-4xl sm:text-5xl lg:text-6xl animate-pulse">💥</div>
