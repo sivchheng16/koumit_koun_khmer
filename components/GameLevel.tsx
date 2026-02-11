@@ -20,13 +20,22 @@ const GameLevel: React.FC<GameLevelProps> = ({ level, onBack, onNext, onComplete
   const [robotPos, setRobotPos] = useState<Position>(level.start);
   const [robotDir, setRobotDir] = useState<Direction>(level.startDirection);
   const [isPlaying, setIsPlaying] = useState(false);
+  const [isJumping, setIsJumping] = useState(false);
   const [gameStatus, setGameStatus] = useState<'idle' | 'running' | 'success' | 'failure'>('idle');
-  const [failureReason, setFailureReason] = useState<'crashed' | 'bounds' | null>(null);
+  const [failureReason, setFailureReason] = useState<'crashed' | 'bounds' | 'incomplete' | null>(null);
   const [currentStepIndex, setCurrentStepIndex] = useState<number>(-1);
   const [hint, setHint] = useState<string | null>(null);
   const [isLoadingHint, setIsLoadingHint] = useState(false);
   const [muted, setMuted] = useState(getMuteState());
   const [earnedStars, setEarnedStars] = useState<number>(0);
+  const [showResultModal, setShowResultModal] = useState(false);
+  
+  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  // Layout Metrics for smooth animation
+  const gridRef = useRef<HTMLDivElement>(null);
+  const [gridMetrics, setGridMetrics] = useState({ cellSize: 0, gapSize: 0 });
 
   // Tutorial State
   const [tutorialStepIndex, setTutorialStepIndex] = useState<number>(0);
@@ -34,6 +43,18 @@ const GameLevel: React.FC<GameLevelProps> = ({ level, onBack, onNext, onComplete
 
   const isTutorial = !!level.tutorialSteps;
   const currentTutorialStep = isTutorial ? level.tutorialSteps?.[tutorialStepIndex] : null;
+
+  const isPreparingResult = gameStatus === 'success' && !showResultModal;
+
+  // Reverted to fixed sizing (previously handled 5x5 to 8x8 well)
+  const sizing = {
+    cell: 'w-16 h-16 sm:w-20 sm:h-20 lg:w-24 lg:h-24',
+    icon: 36,
+    emoji: 'text-3xl sm:text-4xl lg:text-5xl',
+    robot: 'text-4xl sm:text-5xl lg:text-6xl',
+    goal: 'text-2xl sm:text-3xl lg:text-4xl',
+    gap: 'gap-2'
+  };
 
   // Reset when level changes
   useEffect(() => {
@@ -44,6 +65,45 @@ const GameLevel: React.FC<GameLevelProps> = ({ level, onBack, onNext, onComplete
     setTutorialFeedback(null);
     resetGame();
   }, [level]);
+
+  // Measure grid for smooth animation
+  const updateGridMetrics = useCallback(() => {
+    if (gridRef.current && gridRef.current.children.length > 1) {
+      const cell0 = gridRef.current.children[0] as HTMLElement;
+      const cell1 = gridRef.current.children[1] as HTMLElement;
+      
+      const rect0 = cell0.getBoundingClientRect();
+      const rect1 = cell1.getBoundingClientRect();
+      
+      // Calculate stride based on horizontal difference (assuming grid width > 1)
+      const stride = rect1.left - rect0.left;
+      const cellSize = rect0.width;
+      const gapSize = stride - cellSize;
+      
+      setGridMetrics({ cellSize, gapSize });
+    }
+  }, [level.gridSize]);
+
+  useEffect(() => {
+    updateGridMetrics();
+    window.addEventListener('resize', updateGridMetrics);
+    return () => window.removeEventListener('resize', updateGridMetrics);
+  }, [updateGridMetrics]);
+
+  // UseEffect to trigger measurement after render when level changes
+  useEffect(() => {
+     // Small delay to ensure DOM is rendered
+     const timer = setTimeout(updateGridMetrics, 50);
+     return () => clearTimeout(timer);
+  }, [level, updateGridMetrics]);
+
+  // Clean up timer on unmount
+  useEffect(() => {
+      return () => {
+          if (timerRef.current) clearTimeout(timerRef.current);
+          if (intervalRef.current) clearInterval(intervalRef.current);
+      }
+  }, []);
 
   // Notify parent on success
   useEffect(() => {
@@ -84,11 +144,21 @@ const GameLevel: React.FC<GameLevelProps> = ({ level, onBack, onNext, onComplete
   }, [gameStatus, isTutorial, currentTutorialStep]);
 
   const resetGame = () => {
+    if (timerRef.current) {
+        clearTimeout(timerRef.current);
+        timerRef.current = null;
+    }
+    if (intervalRef.current) {
+        clearInterval(intervalRef.current);
+        intervalRef.current = null;
+    }
+    setShowResultModal(false);
     setRobotPos(level.start);
     setRobotDir(level.startDirection);
     setGameStatus('idle');
     setFailureReason(null);
     setIsPlaying(false);
+    setIsJumping(false);
     setCurrentStepIndex(-1);
     setHint(null);
   };
@@ -283,19 +353,34 @@ const GameLevel: React.FC<GameLevelProps> = ({ level, onBack, onNext, onComplete
     }
 
     playSound('run');
+    
+    // Reset visuals and timer before run
+    resetGame();
+    
     setGameStatus('running');
     setIsPlaying(true);
-    resetGame(); // visual reset before run
-    setGameStatus('running'); // set back to running
 
     const steps = calculatePath();
     let stepIndex = 0;
 
-    const interval = setInterval(() => {
+    intervalRef.current = setInterval(() => {
       // Step Index Logic:
       if (stepIndex >= steps.length) {
-        clearInterval(interval);
+        if (intervalRef.current) clearInterval(intervalRef.current);
+        
+        // Loop finished naturally means incomplete (didn't hit goal or crash inside loop)
         setIsPlaying(false);
+        setIsJumping(false);
+        
+        setFailureReason('incomplete');
+        setGameStatus('failure'); // Visual feedback immediate
+        playSound('remove');
+
+        // Delay popup by 1 second for incomplete
+        timerRef.current = setTimeout(() => {
+            setShowResultModal(true);
+        }, 1000);
+        
         return;
       }
 
@@ -304,9 +389,13 @@ const GameLevel: React.FC<GameLevelProps> = ({ level, onBack, onNext, onComplete
       setRobotDir(step.direction);
       setCurrentStepIndex(step.commandIndex);
 
+      // Check if this step was a jump command
+      const cmd = step.commandIndex >= 0 ? blocks[step.commandIndex] : null;
+      const isJump = cmd ? cmd.type.toString().includes('JUMP') : false;
+      setIsJumping(isJump);
+
       // Play sound for the move that just happened
       if (stepIndex > 0) {
-        const cmd = blocks[step.commandIndex];
         if (cmd) {
             if (cmd.type.toString().includes('JUMP')) playSound('jump');
             else playSound('move');
@@ -314,18 +403,44 @@ const GameLevel: React.FC<GameLevelProps> = ({ level, onBack, onNext, onComplete
       }
 
       if (step.status === 'goal') {
-        clearInterval(interval);
-        const stars = calculateStars(blocks.length);
-        setEarnedStars(stars);
-        setGameStatus('success');
-        setIsPlaying(false);
-        playSound('win');
+        if (intervalRef.current) clearInterval(intervalRef.current);
+        
+        // Wait 600ms for the final move/jump animation to complete before landing
+        timerRef.current = setTimeout(() => {
+            // Stop movement/animation so it rests on the goal
+            setIsPlaying(false);
+            setIsJumping(false);
+
+            // Wait 0.5s before triggering victory animation/stars
+            timerRef.current = setTimeout(() => {
+                const stars = calculateStars(blocks.length);
+                setEarnedStars(stars);
+                setGameStatus('success');
+                playSound('win');
+                
+                // Delay popup by 2.5 seconds after success starts
+                timerRef.current = setTimeout(() => {
+                    setShowResultModal(true);
+                }, 2500);
+            }, 500);
+        }, 600); 
+
       } else if (step.status === 'crashed' || step.status === 'bounds') {
-        clearInterval(interval);
-        setFailureReason(step.status as 'crashed' | 'bounds');
-        setGameStatus('failure');
-        setIsPlaying(false);
-        playSound('crash');
+        if (intervalRef.current) clearInterval(intervalRef.current);
+        
+        // Wait 600ms for the final move/jump animation to hit the obstacle
+        timerRef.current = setTimeout(() => {
+            setFailureReason(step.status as 'crashed' | 'bounds');
+            setGameStatus('failure'); // Visual feedback
+            setIsPlaying(false);
+            setIsJumping(false);
+            playSound('crash');
+            
+            // Delay popup by 1 second for crash/bounds
+            timerRef.current = setTimeout(() => {
+                setShowResultModal(true);
+            }, 1000);
+        }, 600);
       }
 
       stepIndex++;
@@ -351,7 +466,7 @@ const GameLevel: React.FC<GameLevelProps> = ({ level, onBack, onNext, onComplete
       for (let x = 0; x < level.gridSize; x++) {
         const isStart = x === level.start.x && y === level.start.y;
         const isGoal = x === level.goal.x && y === level.goal.y;
-        const isRobot = robotPos.x === x && robotPos.y === y;
+        // Robot is now rendered separately as an overlay
         
         // Filter obstacles at this position
         const cellObstacles = level.obstacles.filter(obs => obs.x === x && obs.y === y);
@@ -387,23 +502,23 @@ const GameLevel: React.FC<GameLevelProps> = ({ level, onBack, onNext, onComplete
                     cellContent = (
                         <div className="relative flex items-center justify-center w-full h-full">
                              <div className="absolute w-3/4 h-3/4 bg-gray-300 rounded-full opacity-50 blur-[1px] translate-y-1"></div>
-                             <Mountain className="text-gray-600 fill-gray-400 drop-shadow-md z-10" size={36} strokeWidth={1.5} />
+                             <Mountain className="text-gray-600 fill-gray-400 drop-shadow-md z-10" size={sizing.icon} strokeWidth={1.5} />
                         </div>
                     );
                 } else if (t === 'wall') {
-                    cellContent = <span className="text-3xl sm:text-4xl lg:text-5xl filter drop-shadow-md z-10">🧱</span>;
+                    cellContent = <span className={`${sizing.emoji} filter drop-shadow-md z-10`}>🧱</span>;
                 } else if (t === 'forest') {
                     cellContent = (
                         <div className="relative flex items-center justify-center w-full h-full">
                              <div className="absolute w-3/4 h-3/4 bg-green-200 rounded-full opacity-50 blur-[2px] translate-y-1"></div>
-                             <Trees className="text-green-600 fill-green-100 drop-shadow-md z-10" size={36} strokeWidth={1.5} />
+                             <Trees className="text-green-600 fill-green-100 drop-shadow-md z-10" size={sizing.icon} strokeWidth={1.5} />
                         </div>
                     );
                 } else if (t === 'fire') {
                      cellContent = (
                         <div className="relative flex items-center justify-center w-full h-full">
                              <div className="absolute w-full h-full bg-red-400 rounded-full opacity-20 animate-pulse blur-md"></div>
-                             <Flame className="text-red-500 fill-orange-500 animate-bounce drop-shadow-lg z-10" size={36} />
+                             <Flame className="text-red-500 fill-orange-500 animate-bounce drop-shadow-lg z-10" size={sizing.icon} />
                         </div>
                     );
                 }
@@ -413,13 +528,13 @@ const GameLevel: React.FC<GameLevelProps> = ({ level, onBack, onNext, onComplete
                     cellContent = (
                         <div className="relative w-full h-full flex items-center justify-center overflow-hidden">
                              <div className="absolute inset-0 bg-blue-400/10 animate-pulse"></div>
-                             <Waves className="text-blue-500 opacity-80 z-10" size={32} />
+                             <Waves className="text-blue-500 opacity-80 z-10" size={sizing.icon} />
                         </div>
                     );
                 } else if (hasMud) {
                     cellContent = (
                          <div className="w-full h-full flex items-center justify-center">
-                            <span className="text-2xl opacity-60 z-10 grayscale">🌫️</span>
+                            <span className={`${sizing.emoji} opacity-60 z-10 grayscale`}>🌫️</span>
                          </div>
                     );
                 }
@@ -427,31 +542,45 @@ const GameLevel: React.FC<GameLevelProps> = ({ level, onBack, onNext, onComplete
         }
 
         if (isGoal && !cellContent) {
-            cellContent = <div className="text-2xl sm:text-3xl lg:text-4xl animate-bounce filter drop-shadow-md z-10" title="គោលដៅ (Goal)">🚩</div>;
+            if (gameStatus === 'success') {
+                 // Success Animation state - Enhanced
+                 cellContent = (
+                    <div className="relative flex items-center justify-center w-full h-full overflow-visible z-10">
+                        {/* Radiant Background */}
+                        <div className="absolute inset-0 bg-yellow-300 rounded-full blur-md opacity-60 animate-pulse"></div>
+                        <div className="absolute inset-0 border-4 border-yellow-400 rounded-full animate-ping opacity-40"></div>
+                        
+                        {/* Rotating Rays (Simulated with div rotation) */}
+                        <div className="absolute w-[120%] h-[120%] border-2 border-dashed border-yellow-500/50 rounded-full animate-spin [animation-duration:3s]"></div>
+
+                        {/* Trophy */}
+                        <div className={`${sizing.goal} animate-goal-pop z-20 filter drop-shadow-xl relative`}>
+                            🏆
+                            <span className="absolute -top-2 -right-3 text-lg animate-bounce [animation-delay:0.1s]">✨</span>
+                            <span className="absolute -bottom-1 -left-3 text-lg animate-bounce [animation-delay:0.3s]">✨</span>
+                        </div>
+                    </div>
+                 );
+                 // Highlight the cell background - Enhanced
+                 cellBgClass = 'bg-yellow-100 border-yellow-500 shadow-[0_0_25px_rgba(234,179,8,0.5)] z-10 transform scale-110 transition-all duration-500 ring-4 ring-yellow-300';
+            } else {
+                 cellContent = <div className={`${sizing.goal} animate-bounce filter drop-shadow-md z-10`} title="គោលដៅ (Goal)">🚩</div>;
+            }
+        }
+
+        // Detect crash site
+        if (gameStatus === 'failure' && failureReason === 'crashed' && x === robotPos.x && y === robotPos.y) {
+             cellBgClass = `${cellBgClass} animate-crash-pulse ring-4 ring-red-500 z-20`;
         }
 
         cells.push(
           <div 
             key={`${x}-${y}`} 
-            className={`w-16 h-16 sm:w-20 sm:h-20 lg:w-24 lg:h-24 xl:w-28 xl:h-28 border-2 rounded-lg flex items-center justify-center relative shadow-sm overflow-hidden transition-colors duration-300 ${cellBgClass}`}
+            className={`${sizing.cell} border-2 rounded-lg flex items-center justify-center relative shadow-sm overflow-hidden transition-colors duration-300 ${cellBgClass}`}
             title={obstacleTitle}
           >
-            {isStart && !isRobot && <div className="absolute opacity-40 text-xl sm:text-2xl lg:text-3xl grayscale z-0" title="ចំណុចចាប់ផ្តើម (Start)"></div>}
-            
+            {isStart && <div className={`absolute opacity-40 grayscale z-0 ${sizing.emoji}`} title="ចំណុចចាប់ផ្តើម (Start)"></div>}
             {cellContent}
-            
-            {isRobot && (
-              <div 
-                className="absolute z-20 transition-transform duration-300 ease-in-out flex items-center justify-center"
-               
-              >
-                {gameStatus === 'failure' ? (
-                   <div className="text-4xl sm:text-5xl lg:text-6xl animate-pulse">💥</div>
-                ) : (
-                   <div className="text-4xl sm:text-5xl lg:text-6xl filter drop-shadow-xl animate-jump-in">🤖</div>
-                )}
-              </div>
-            )}
           </div>
         );
       }
@@ -459,7 +588,8 @@ const GameLevel: React.FC<GameLevelProps> = ({ level, onBack, onNext, onComplete
 
     return (
       <div 
-        className="grid gap-1 sm:gap-2 m-auto"
+        ref={gridRef}
+        className={`grid ${sizing.gap} m-auto relative`}
         style={{ gridTemplateColumns: `repeat(${level.gridSize}, min-content)` }}
       >
         {cells}
@@ -491,12 +621,17 @@ const GameLevel: React.FC<GameLevelProps> = ({ level, onBack, onNext, onComplete
       }
   };
 
+  // Calculate pixel position for the robot based on grid metrics
+  const stride = gridMetrics.cellSize + gridMetrics.gapSize;
+  const robotPixelX = robotPos.x * stride;
+  const robotPixelY = robotPos.y * stride;
+
   return (
     <div className="flex flex-col h-full w-full max-w-[1600px] mx-auto p-2 sm:p-4 gap-4 relative">
       
       {/* SUCCESS MODAL POPUP */}
-      {gameStatus === 'success' && (
-        <div className="absolute inset-0 z-50 flex items-center justify-center p-4 backdrop-blur-sm bg-black/40 rounded-3xl">
+      {gameStatus === 'success' && showResultModal && (
+        <div className="absolute inset-0 z-50 flex items-center justify-center p-4 backdrop-blur-sm bg-black/40 rounded-3xl animate-in fade-in duration-300">
             <div className="bg-white rounded-3xl p-8 shadow-2xl w-full max-w-md text-center border-4 border-blue-100 transform transition-all scale-100">
                 <div className="mb-4 flex justify-center">
                      <div className="w-20 h-20 bg-green-100 rounded-full flex items-center justify-center shadow-inner animate-bounce">
@@ -512,8 +647,8 @@ const GameLevel: React.FC<GameLevelProps> = ({ level, onBack, onNext, onComplete
                         <div key={i} className="relative">
                             <Star 
                                 size={56} 
-                                className={`${i <= earnedStars ? 'text-yellow-400 fill-yellow-400 drop-shadow-lg' : 'text-gray-200 fill-gray-100'} transition-all duration-700 ease-out transform`} 
-                                style={{ transitionDelay: `${i * 150}ms`}}
+                                className={`${i <= earnedStars ? 'text-yellow-400 fill-yellow-400 drop-shadow-lg' : 'text-gray-200 fill-gray-100'} animate-star-pop`} 
+                                style={{ animationDelay: `${i * 200}ms`}}
                             />
                         </div>
                     ))}
@@ -550,19 +685,27 @@ const GameLevel: React.FC<GameLevelProps> = ({ level, onBack, onNext, onComplete
       )}
 
       {/* FAILURE MODAL POPUP */}
-      {gameStatus === 'failure' && (
-        <div className="absolute inset-0 z-50 flex items-center justify-center p-4 backdrop-blur-sm bg-black/40 rounded-3xl">
-            <div className="bg-white rounded-3xl p-8 shadow-2xl w-full max-w-md text-center border-4 border-red-100 transform transition-all scale-100">
+      {gameStatus === 'failure' && showResultModal && (
+        <div className="absolute inset-0 z-50 flex items-center justify-center p-4 backdrop-blur-sm bg-black/40 rounded-3xl animate-in fade-in duration-300">
+            <div className={`bg-white rounded-3xl p-8 shadow-2xl w-full max-w-md text-center border-4 ${failureReason === 'incomplete' ? 'border-orange-100' : 'border-red-100'} transform transition-all scale-100`}>
                 <div className="mb-4 flex justify-center">
-                     <div className="w-20 h-20 bg-red-100 rounded-full flex items-center justify-center shadow-inner animate-pulse">
-                        {failureReason === 'bounds' ? <XCircle className="text-red-500 w-10 h-10" /> : <AlertTriangle className="text-red-500 w-10 h-10" />}
+                     <div className={`w-20 h-20 ${failureReason === 'incomplete' ? 'bg-orange-100' : 'bg-red-100'} rounded-full flex items-center justify-center shadow-inner animate-pulse`}>
+                        {failureReason === 'bounds' ? <XCircle className="text-red-500 w-10 h-10" /> : 
+                         failureReason === 'incomplete' ? <HelpCircle className="text-orange-500 w-10 h-10" /> :
+                         <AlertTriangle className="text-red-500 w-10 h-10" />}
                      </div>
                 </div>
                 
-                <h2 className="text-3xl font-black text-red-600 mb-2">
-                    {failureReason === 'bounds' ? TRANSLATIONS.outOfBounds : TRANSLATIONS.crash}
+                <h2 className={`text-3xl font-black ${failureReason === 'incomplete' ? 'text-orange-600' : 'text-red-600'} mb-2`}>
+                    {failureReason === 'bounds' ? TRANSLATIONS.outOfBounds : 
+                     failureReason === 'incomplete' ? TRANSLATIONS.incomplete :
+                     TRANSLATIONS.crash}
                 </h2>
-                <p className="text-gray-500 mb-6">{TRANSLATIONS.tryAgain}</p>
+                <p className="text-gray-500 mb-6">
+                    {failureReason === 'bounds' ? TRANSLATIONS.outOfBoundsDetail : 
+                     failureReason === 'incomplete' ? TRANSLATIONS.incompleteDetail :
+                     TRANSLATIONS.crashDetail}
+                </p>
                 
                 <div className="flex gap-4">
                     <button 
@@ -577,7 +720,7 @@ const GameLevel: React.FC<GameLevelProps> = ({ level, onBack, onNext, onComplete
                             setGameStatus('idle');
                             resetGame();
                         }} 
-                        className="flex-1 bg-red-500 hover:bg-red-600 text-white font-bold py-3 px-4 rounded-xl shadow-lg transition-transform hover:-translate-y-1 flex items-center justify-center gap-2"
+                        className={`flex-1 ${failureReason === 'incomplete' ? 'bg-orange-500 hover:bg-orange-600' : 'bg-red-500 hover:bg-red-600'} text-white font-bold py-3 px-4 rounded-xl shadow-lg transition-transform hover:-translate-y-1 flex items-center justify-center gap-2`}
                     >
                         <RefreshCw size={20} />
                         {TRANSLATIONS.tryAgain}
@@ -646,7 +789,103 @@ const GameLevel: React.FC<GameLevelProps> = ({ level, onBack, onNext, onComplete
            )}
 
            <div className="flex-grow overflow-auto flex items-center justify-center p-2 sm:p-6" style={{ backgroundImage: 'radial-gradient(circle, #dbeafe 1px, transparent 1px)', backgroundSize: '20px 20px' }}>
-                {renderGrid()}
+                <div className="relative">
+                    {/* Render the static grid */}
+                    {renderGrid()}
+
+                    {/* Render the Robot as an absolute overlay for smooth translation */}
+                    <div 
+                        className="absolute top-0 left-0 pointer-events-none z-30"
+                        style={{
+                            width: gridMetrics.cellSize,
+                            height: gridMetrics.cellSize,
+                            // Use smooth translation based on pixel calculations
+                            transform: `translate(${robotPixelX}px, ${robotPixelY}px)`,
+                            transition: 'transform 500ms ease-in-out',
+                        }}
+                    >
+                         {/* Confetti Overlay - Enhanced */}
+                         {gameStatus === 'success' && (
+                             <>
+                                <div className="absolute top-0 left-1/2 -translate-x-1/2 -translate-y-full text-2xl animate-confetti" style={{ animationDelay: '0ms', left: '20%' }}>🎉</div>
+                                <div className="absolute top-0 left-1/2 -translate-x-1/2 -translate-y-full text-2xl animate-confetti" style={{ animationDelay: '100ms', left: '80%' }}>🎊</div>
+                                <div className="absolute top-0 left-1/2 -translate-x-1/2 -translate-y-full text-2xl animate-confetti" style={{ animationDelay: '200ms', left: '50%' }}>⭐</div>
+                                <div className="absolute top-0 left-1/2 -translate-x-1/2 -translate-y-full text-2xl animate-confetti" style={{ animationDelay: '300ms', left: '30%' }}>✨</div>
+                                <div className="absolute top-0 left-1/2 -translate-x-1/2 -translate-y-full text-2xl animate-confetti" style={{ animationDelay: '150ms', left: '70%' }}>🎈</div>
+                                {/* Extra sparkles */}
+                                <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-32 h-32 bg-yellow-400/20 rounded-full blur-2xl animate-pulse pointer-events-none"></div>
+                             </>
+                         )}
+
+                         {/* Jump Effects (Ground Layer) */}
+                         {isJumping && (
+                             <div className="absolute inset-0 flex items-center justify-center z-0">
+                                 {/* Sonic Boom / Ripple */}
+                                 <div className="w-full h-full border-4 border-white/40 rounded-full animate-ping absolute inset-0"></div>
+                                 <div className="w-[120%] h-[120%] border-2 border-white/20 rounded-full animate-ping absolute -inset-[10%] animation-delay-75"></div>
+                             </div>
+                         )}
+
+                         {/* Shadow - scales down significantly when jumping to simulate height */}
+                         <div className={`absolute bottom-1 left-1 right-1 h-3 bg-black/20 rounded-[100%] blur-[2px] transition-all duration-500 ease-in-out ${isJumping ? 'scale-x-25 scale-y-25 opacity-20 translate-y-4 blur-sm' : 'scale-100 opacity-70'}`} />
+
+                         {/* Success Text Overlay */}
+                         {gameStatus === 'success' && (
+                             <div className="absolute top-0 left-1/2 -translate-x-1/2 w-max z-50 animate-float-text pointer-events-none">
+                                <span className="text-3xl font-black text-yellow-500 drop-shadow-[0_2px_2px_rgba(0,0,0,0.5)] stroke-2 stroke-white">
+                                    {TRANSLATIONS.victory}!
+                                </span>
+                             </div>
+                         )}
+
+                         <div 
+                            className={`w-full h-full flex items-center justify-center transition-transform duration-500 ease-in-out ${isPlaying || gameStatus === 'success' ? 'scale-110' : 'scale-100'}`}
+                            style={{
+                                transform: gameStatus === 'failure' && failureReason !== 'incomplete' ? 'scale(1.2)' : `${isPlaying || gameStatus === 'success' ? 'scale(1.1)' : ''}`
+                            }}
+                         >
+                            {/* "Bobbing" animation container for walking effect */}
+                            <div key={currentStepIndex} className={`w-full h-full flex items-center justify-center transition-transform duration-500 ease-in-out ${isJumping ? 'animate-jump-arc' : ''}`}>
+                                
+                                {/* Jump Action Lines (Thrust/Speed) */}
+                                {isJumping && (
+                                    <div className="absolute -bottom-2 flex gap-1 justify-center w-full z-10">
+                                         <div className="relative">
+                                            <Flame size={16} className="text-orange-400 fill-yellow-200 animate-pulse rotate-180 opacity-60" />
+                                            <div className="absolute top-0 left-0 w-full h-full bg-orange-300 blur-sm rounded-full animate-ping opacity-50"></div>
+                                         </div>
+                                    </div>
+                                )}
+                                
+                                {/* Ghost Trail for speed effect */}
+                                {isJumping && (
+                                    <div className="absolute top-6 left-0 w-full h-full flex items-center justify-center opacity-30 scale-90 grayscale blur-[1px] pointer-events-none select-none">
+                                         <div className={`${sizing.robot}`}>🤖</div>
+                                    </div>
+                                )}
+
+                                <div className={`transition-all duration-300 ${!isJumping && isPlaying ? 'animate-bounce' : ''} ${gameStatus === 'success' ? 'animate-victory' : ''} ${gameStatus === 'failure' && failureReason === 'crashed' ? 'animate-shake' : ''}`} style={{ animationDuration: isPlaying ? '600ms' : '1s' }}>
+                                    {gameStatus === 'failure' && failureReason !== 'incomplete' ? (
+                                        <div className="text-4xl sm:text-5xl lg:text-6xl animate-pulse">💥</div>
+                                    ) : (
+                                        <div className={`relative ${sizing.robot} filter drop-shadow-xl`}>
+                                            {gameStatus === 'failure' && failureReason === 'incomplete' ? '🤔' : '🤖'}
+                                            
+                                            {gameStatus === 'success' && (
+                                                <>
+                                                    <div className="absolute -top-8 left-1/2 -translate-x-1/2 text-4xl animate-bounce z-20 drop-shadow-lg">👑</div>
+                                                    {/* Extra Sparkles around Robot */}
+                                                    <div className="absolute -top-6 -right-8 text-2xl animate-pulse text-yellow-400 z-20" style={{animationDelay: '0.2s'}}>✨</div>
+                                                    <div className="absolute top-4 -left-10 text-2xl animate-pulse text-yellow-400 z-20" style={{animationDelay: '0.4s'}}>✨</div>
+                                                </>
+                                            )}
+                                        </div>
+                                    )}
+                                </div>
+                            </div>
+                         </div>
+                    </div>
+                </div>
            </div>
            
            <div className="absolute bottom-0 w-full p-2 pointer-events-none flex flex-col items-center gap-2">
@@ -834,12 +1073,21 @@ const GameLevel: React.FC<GameLevelProps> = ({ level, onBack, onNext, onComplete
                 <button 
                     id="btn-run"
                     onClick={handleRun}
-                    disabled={isPlaying || blocks.length === 0}
+                    disabled={isPlaying || blocks.length === 0 || isPreparingResult}
                     className={getButtonClass('btn-run', `flex-1 py-3 rounded-xl flex items-center justify-center gap-2 font-bold text-white shadow-md transition-all
-                        ${isPlaying || blocks.length === 0 ? 'bg-gray-300 cursor-not-allowed' : 'bg-green-500 hover:bg-green-600 active:translate-y-1'}
+                        ${isPlaying || blocks.length === 0 || isPreparingResult ? 'bg-gray-300 cursor-not-allowed' : 'bg-green-500 hover:bg-green-600 active:translate-y-1'}
                     `)}
                 >
-                    <Play fill="currentColor" /> {TRANSLATIONS.run}
+                    {isPreparingResult ? (
+                        <>
+                            <RefreshCw className="animate-spin" size={20} />
+                            <span className="text-sm sm:text-base">{TRANSLATIONS.preparingResult}</span>
+                        </>
+                    ) : (
+                        <>
+                            <Play fill="currentColor" /> {TRANSLATIONS.run}
+                        </>
+                    )}
                 </button>
                 <button 
                     id="btn-reset"

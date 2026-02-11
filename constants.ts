@@ -15,9 +15,14 @@ export const TRANSLATIONS = {
   tryAgain: "ព្យាយាមម្តងទៀត",
   victory: "ជោគជ័យ!",
   crash: "អូ! បុកហើយ!",
+  crashDetail: "ប្រយ័ត្នឧបសគ្គ! ព្យាយាមរកផ្លូវផ្សេង។",
   outOfBounds: "ចេញក្រៅផ្លូវហើយ!",
+  outOfBoundsDetail: "រ៉ូបូដើរចេញពីតារាងហើយ។ សូមពិនិត្យមើលឡើងវិញ។",
+  incomplete: "មិនទាន់ដល់គោលដៅទេ!",
+  incompleteDetail: "រ៉ូបូទៅមិនដល់គោលដៅទេ។ សូមបន្ថែមបញ្ជាទៀត!",
   help: "ជំនួយ (AI)",
   loading: "កំពុងដំណើរការ...",
+  preparingResult: "កំពុងរៀបចំលទ្ធផល...",
   save: "រក្សាទុក",
   load: "ផ្ទុកទិន្នន័យ",
   saveSuccess: "ការរក្សាទុកបានជោគជ័យ!",
@@ -133,12 +138,8 @@ const generateLevels = (): LevelConfig[] => {
     const rng = new RNG(i * 1234567 + 890123); 
     
     // 1. Difficulty Scaling
-    // Grid Size: Increases significantly
-    let gridSize = 5;
-    if (i > 10) gridSize = 6;
-    if (i > 30) gridSize = 7;
-    if (i > 60) gridSize = 8;
-    if (i > 85) gridSize = 9;
+    // Grid Size: Increases slower now. Max 8x8.
+    const gridSize = Math.min(8, 5 + Math.floor((i - 1) / 15));
 
     // Difficulty factor (0.0 to 1.0)
     const difficulty = Math.min(1, i / 100); 
@@ -150,27 +151,102 @@ const generateLevels = (): LevelConfig[] => {
     else if (i > 60 && i <= 80) theme = 'fire';
     else if (i > 80) theme = 'mix';
 
-    // 2. Start & Goal Placement
-    // Easy: Closer. Hard: Corners.
+    // 2. Start & Goal Placement - ENHANCED VARIETY
     let start = { x: 0, y: 0 };
     let goal = { x: gridSize - 1, y: gridSize - 1 };
     
+    // Strategy varies by level index to ensure no two consecutive levels feel the same
+    const strategy = i % 5; 
+
     if (i <= 5) {
+        // Levels 1-5: Simple Left-to-Right progression (Classic Platformer feel)
         start = { x: 0, y: rng.range(0, gridSize-1) };
         goal = { x: gridSize-1, y: rng.range(0, gridSize-1) };
     } else {
-        // Randomize corners/edges
-        const corners = [
-            {x:0, y:0}, {x:gridSize-1, y:0}, 
-            {x:0, y:gridSize-1}, {x:gridSize-1, y:gridSize-1}
-        ];
-        const startIdx = rng.range(0, 3);
-        start = corners[startIdx];
-        // Goal is the opposite corner or random other corner
-        goal = corners[(startIdx + 2) % 4]; 
+        switch(strategy) {
+            case 0: // Diagonal Corners
+                const corners = [
+                    {x:0, y:0}, {x:gridSize-1, y:0}, 
+                    {x:0, y:gridSize-1}, {x:gridSize-1, y:gridSize-1}
+                ];
+                const startIdx = rng.range(0, 3);
+                start = corners[startIdx];
+                // Opposite corner index: 0<->3, 1<->2
+                goal = corners[3 - startIdx];
+                break;
+                
+            case 1: // Vertical (Top <-> Bottom)
+                const topToBottom = rng.bool();
+                start = { 
+                    x: rng.range(0, gridSize-1), 
+                    y: topToBottom ? 0 : gridSize-1 
+                };
+                goal = { 
+                    x: rng.range(0, gridSize-1), 
+                    y: topToBottom ? gridSize-1 : 0 
+                };
+                break;
+                
+            case 2: // Horizontal (Left <-> Right) with offsets
+                const leftToRight = rng.bool();
+                start = { 
+                    x: leftToRight ? 0 : gridSize-1, 
+                    y: rng.range(0, gridSize-1) 
+                };
+                goal = { 
+                    x: leftToRight ? gridSize-1 : 0, 
+                    y: rng.range(0, gridSize-1) 
+                };
+                break;
+                
+            case 3: // Random Perimeter Points
+                const getPerimeterPoint = () => {
+                    if (rng.bool()) {
+                        // Fix X to 0 or Max
+                        return { x: rng.bool() ? 0 : gridSize-1, y: rng.range(0, gridSize-1) };
+                    } else {
+                        // Fix Y to 0 or Max
+                        return { x: rng.range(0, gridSize-1), y: rng.bool() ? 0 : gridSize-1 };
+                    }
+                };
+                start = getPerimeterPoint();
+                // Ensure goal is at least half the grid away
+                let attempts = 0;
+                do {
+                    goal = getPerimeterPoint();
+                    attempts++;
+                } while (
+                    (Math.abs(start.x - goal.x) + Math.abs(start.y - goal.y) < gridSize/2) && 
+                    attempts < 10
+                );
+                break;
+                
+            case 4: // Scattered Internal (Harder)
+                // Start somewhere, Goal somewhere else
+                let attempts2 = 0;
+                do {
+                    start = { x: rng.range(0, gridSize - 1), y: rng.range(0, gridSize - 1) };
+                    goal = { x: rng.range(0, gridSize - 1), y: rng.range(0, gridSize - 1) };
+                    attempts2++;
+                } while (
+                    (Math.abs(start.x - goal.x) + Math.abs(start.y - goal.y) < gridSize - 1) && 
+                    attempts2 < 20
+                );
+                break;
+        }
     }
 
-    const startDirection = rng.pick([Direction.East, Direction.South]); 
+    // Smart Start Direction: Face towards the goal
+    let startDirection = Direction.East;
+    const dx = goal.x - start.x;
+    const dy = goal.y - start.y;
+    
+    // Prioritize the larger difference dimension
+    if (Math.abs(dx) >= Math.abs(dy)) {
+        startDirection = dx > 0 ? Direction.East : Direction.West;
+    } else {
+        startDirection = dy > 0 ? Direction.South : Direction.North;
+    }
 
     // 3. Path Generation (The "Solution")
     // Use a Random Walk that biases towards the goal but allows deviation based on difficulty.
