@@ -172,7 +172,7 @@ const App: React.FC = () => {
             <div className="flex-1 flex flex-col overflow-y-auto overflow-x-hidden scroll-smooth">
                 {/* Header */}
                 <header className="sticky top-0 z-50 bg-white/90 backdrop-blur-md border-b border-gray-100 shadow-sm">
-                    <div className="container mx-auto px-4 sm:px-6 h-16 flex items-center justify-between">
+                    <div className="flex md:container mx-auto px-4 sm:px-0 h-16 flex items-center justify-between ">
                         <div className="flex items-center gap-2">
                             <div className="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center text-white shadow-md">
                                 <BrainCircuit size={18} />

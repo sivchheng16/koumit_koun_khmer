@@ -58,10 +58,10 @@ const GameLevel: React.FC<GameLevelProps> = ({ level, onBack, onNext, onComplete
   // Responsive sizing configuration
   const sizing = {
     // Dynamic cell sizing handles the grid, icon sizes below are for internal SVG scaling
-    icon: isSmallGrid ? 30 : 28, // Increased size for better visibility on small grids
-    emoji: isSmallGrid ? 'text-2xl sm:text-5xl lg:text-6xl' : 'text-2xl sm:text-3xl lg:text-4xl',
-    robot: isSmallGrid ? 'text-3xl sm:text-6xl lg:text-7xl' : 'text-3xl sm:text-4xl lg:text-5xl',
-    goal: isSmallGrid ? 'text-2xl sm:text-5xl lg:text-6xl' : 'text-2xl sm:text-3xl lg:text-4xl',
+    icon: isSmallGrid ? 48 : 28, // Increased size for better visibility on small grids
+    emoji: isSmallGrid ? 'text-4xl sm:text-5xl lg:text-6xl' : 'text-2xl sm:text-3xl lg:text-4xl',
+    robot: isSmallGrid ? 'text-5xl sm:text-6xl lg:text-7xl' : 'text-3xl sm:text-4xl lg:text-5xl',
+    goal: isSmallGrid ? 'text-4xl sm:text-5xl lg:text-6xl' : 'text-2xl sm:text-3xl lg:text-4xl',
   };
 
   // Reset when level changes
@@ -806,19 +806,23 @@ const GameLevel: React.FC<GameLevelProps> = ({ level, onBack, onNext, onComplete
         <div className="lg:flex-grow lg:h-full flex-shrink-0 bg-blue-100 rounded-2xl shadow-xl border-[4px] sm:border-[6px] border-blue-300 flex flex-col relative overflow-hidden transition-all h-[40vh] sm:h-[50vh] lg:h-auto">
            
            {isTutorial && currentTutorialStep && (
-            <div className="absolute bottom-1 left-1/2 transform -translate-x-1/2 z-30 w-[95%] max-w-lg pointer-events-none transition-all  duration-3000">
+            <div className="absolute bottom-6 left-1/2 transform -translate-x-1/2 z-30 w-[95%] max-w-lg pointer-events-none transition-all duration-300">
                 <div 
                     key={tutorialStepIndex}
                     className={`
-                        bg-white/95 backdrop-blur-sm border-2 border-yellow-400 rounded-2xl p-2 sm:p-3 shadow-xl animate-in slide-in-from-bottom-5 pointer-events-auto flex items-center gap-3 relative overflow-hidden
+                        bg-white/95 backdrop-blur-sm border-2 border-yellow-400 rounded-2xl p-3 sm:p-4 shadow-xl animate-in slide-in-from-bottom-5 pointer-events-auto flex items-center gap-3 relative overflow-hidden
                         ${tutorialFeedback === 'error' ? 'animate-bounce border-red-500 bg-red-50' : ''}
                     `}
                 >
-                    <div className="text-xl sm:text-3xl  bg-blue-100 rounded-full p-1 z-10">🤖</div>
+                    <div className="text-2xl sm:text-4xl animate-bounce bg-blue-100 rounded-full p-1 z-10">🤖</div>
                     <div className="flex-1 z-10">
                         <p className="text-sm sm:text-lg font-bold text-gray-800">{currentTutorialStep.message}</p>
                     </div>
-                  
+                    {tutorialFeedback === 'success' && (
+                        <div className="absolute inset-0 flex items-center justify-center bg-green-100/80 animate-in fade-in zoom-in duration-300 z-20">
+                            <Check className="w-10 h-10 sm:w-12 sm:h-12 text-green-600 animate-bounce" strokeWidth={4} />
+                        </div>
+                    )}
                 </div>
             </div>
            )}
