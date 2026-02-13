@@ -58,10 +58,10 @@ const GameLevel: React.FC<GameLevelProps> = ({ level, onBack, onNext, onComplete
   // Responsive sizing configuration
   const sizing = {
     // Dynamic cell sizing handles the grid, icon sizes below are for internal SVG scaling
-    icon: isSmallGrid ? 48 : 28, // Increased size for better visibility on small grids
-    emoji: isSmallGrid ? 'text-4xl sm:text-5xl lg:text-6xl' : 'text-2xl sm:text-3xl lg:text-4xl',
-    robot: isSmallGrid ? 'text-5xl sm:text-6xl lg:text-7xl' : 'text-3xl sm:text-4xl lg:text-5xl',
-    goal: isSmallGrid ? 'text-4xl sm:text-5xl lg:text-6xl' : 'text-2xl sm:text-3xl lg:text-4xl',
+    icon: isSmallGrid ? 30 : 28, // Increased size for better visibility on small grids
+    emoji: isSmallGrid ? 'text-2xl sm:text-5xl lg:text-6xl' : 'text-2xl sm:text-3xl lg:text-4xl',
+    robot: isSmallGrid ? 'text-3xl sm:text-6xl lg:text-7xl' : 'text-3xl sm:text-4xl lg:text-5xl',
+    goal: isSmallGrid ? 'text-2xl sm:text-5xl lg:text-6xl' : 'text-2xl sm:text-3xl lg:text-4xl',
   };
 
   // Reset when level changes
