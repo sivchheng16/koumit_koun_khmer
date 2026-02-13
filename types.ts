@@ -60,3 +60,5 @@ export interface SimulationStep {
   commandIndex: number;
   status: 'running' | 'crashed' | 'goal' | 'bounds';
 }
+
+export type Language = 'km' | 'en';

@@ -1,17 +1,21 @@
 import { GoogleGenAI, Type } from "@google/genai";
-import { LevelConfig, CommandBlock, CommandType, Direction } from '../types';
+import { LevelConfig, CommandBlock, CommandType, Direction, Language } from '../types';
 
 const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
 
 const MODEL_NAME = 'gemini-3-flash-preview';
 
-export const getHintFromAI = async (level: LevelConfig, currentBlocks: CommandBlock[]): Promise<string> => {
+export const getHintFromAI = async (level: LevelConfig, currentBlocks: CommandBlock[], lang: Language): Promise<string> => {
   try {
     const blockNames = currentBlocks.map(b => b.type).join(", ");
     
+    const langContext = lang === 'km' 
+        ? "Language: Khmer (Cambodian). Respond ONLY in Khmer." 
+        : "Language: English. Respond in simple English for a child.";
+
     const prompt = `
-      You are a helpful coding tutor for a Cambodian child (age 7-10).
-      Language: Khmer (Cambodian).
+      You are a helpful coding tutor for a primary school student (age 7-10).
+      ${langContext}
       
       Context:
       The child is playing a grid-based coding game.
@@ -28,7 +32,7 @@ export const getHintFromAI = async (level: LevelConfig, currentBlocks: CommandBl
       
       Task:
       Analyze if the current code will reach the goal. 
-      If it is wrong, give a gentle, encouraging hint in Khmer on what to fix. 
+      If it is wrong, give a gentle, encouraging hint on what to fix. 
       Do not give the exact solution code, just a hint (e.g., "Try walking UP" or "Jump RIGHT over the rock").
       Keep it short (1-2 sentences).
     `;
@@ -38,29 +42,34 @@ export const getHintFromAI = async (level: LevelConfig, currentBlocks: CommandBl
       contents: prompt,
     });
 
-    return response.text || "មិនអាចទទួលបានជំនួយទេ សូមព្យាយាមម្តងទៀត។";
+    const fallback = lang === 'km' ? "មិនអាចទទួលបានជំនួយទេ សូមព្យាយាមម្តងទៀត។" : "Could not get a hint, please try again.";
+    return response.text || fallback;
   } catch (error) {
     console.error("Error getting hint:", error);
-    return "មានបញ្ហាក្នុងការភ្ជាប់ សូមព្យាយាមម្តងទៀត។";
+    const fallback = lang === 'km' ? "មានបញ្ហាក្នុងការភ្ជាប់ សូមព្យាយាមម្តងទៀត។" : "Connection error, please try again.";
+    return fallback;
   }
 };
 
-export const generateNewLevel = async (difficulty: 'easy' | 'medium' | 'hard'): Promise<LevelConfig | null> => {
+export const generateNewLevel = async (difficulty: 'easy' | 'medium' | 'hard', lang: Language): Promise<LevelConfig | null> => {
   try {
+    const langContext = lang === 'km' ? "Khmer" : "English";
+    
     const prompt = `
       Create a JSON object for a grid-based robot coding puzzle level.
       Difficulty: ${difficulty}.
       Grid Size: between 5 and 8.
+      Language for Text: ${langContext}.
       
       Schema:
       {
-        "name": "Level Name in Khmer",
+        "name": "Level Name",
         "gridSize": integer,
         "start": {"x": int, "y": int},
         "startDirection": 0 (North), 1 (East), 2 (South), or 3 (West),
         "goal": {"x": int, "y": int},
         "obstacles": [{"x": int, "y": int}, ...],
-        "description": "Short description in Khmer"
+        "description": "Short description in ${langContext}"
       }
       
       Ensure the path is solvable.
