@@ -1,5 +1,5 @@
 let audioCtx: AudioContext | null = null;
-let isMuted = false;
+export let isMuted = false;
 
 const initAudio = () => {
   if (!audioCtx) {
@@ -8,6 +8,10 @@ const initAudio = () => {
   if (audioCtx.state === 'suspended') {
     audioCtx.resume();
   }
+};
+
+export const setMuted = (muted: boolean) => {
+  isMuted = muted;
 };
 
 export const toggleMute = () => {
