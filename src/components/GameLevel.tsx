@@ -1116,112 +1116,116 @@ const GameLevel: React.FC<GameLevelProps> = ({ level, onBack, onNext, onComplete
           </div>
         </div>
       </div>
-    </div >
 
-      {/* Result Modal */ }
-  {
-    showResultModal && (
-      <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm animate-in fade-in duration-300">
-        <div className="bg-white rounded-3xl shadow-2xl max-w-sm w-full p-6 text-center transform scale-100 animate-in zoom-in-95 duration-300 relative overflow-hidden">
 
-          {/* Background Effects */}
-          {gameStatus === 'success' && (
-            <div className="absolute inset-0 pointer-events-none">
-              <div className="absolute top-0 left-1/2 -translate-x-1/2 w-full h-full bg-gradient-to-b from-yellow-50 to-transparent opacity-50"></div>
-              <div className="absolute -top-10 -left-10 text-6xl animate-bounce [animation-delay:0s] opacity-20">✨</div>
-              <div className="absolute top-20 -right-5 text-4xl animate-bounce [animation-delay:0.5s] opacity-20">🎉</div>
+
+
+
+      {/* Result Modal */}
+      {
+        showResultModal && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm animate-in fade-in duration-300">
+            <div className="bg-white rounded-3xl shadow-2xl max-w-sm w-full p-6 text-center transform scale-100 animate-in zoom-in-95 duration-300 relative overflow-hidden">
+
+              {/* Background Effects */}
+              {gameStatus === 'success' && (
+                <div className="absolute inset-0 pointer-events-none">
+                  <div className="absolute top-0 left-1/2 -translate-x-1/2 w-full h-full bg-gradient-to-b from-yellow-50 to-transparent opacity-50"></div>
+                  <div className="absolute -top-10 -left-10 text-6xl animate-bounce [animation-delay:0s] opacity-20">✨</div>
+                  <div className="absolute top-20 -right-5 text-4xl animate-bounce [animation-delay:0.5s] opacity-20">🎉</div>
+                </div>
+              )}
+
+              <div className="relative z-10">
+                {gameStatus === 'success' ? (
+                  <>
+                    <div className="mx-auto w-24 h-24 bg-yellow-100 rounded-full flex items-center justify-center mb-4 animate-victory shadow-lg shadow-yellow-200">
+                      <div className="text-5xl drop-shadow-md">🏆</div>
+                    </div>
+                    <h2 className="text-3xl font-black text-gray-800 mb-2 tracking-tight">Level Complete!</h2>
+
+                    <div className="flex justify-center gap-2 mb-4">
+                      {[1, 2, 3].map(star => (
+                        <Star
+                          key={star}
+                          className={`w-8 h-8 ${star <= earnedStars ? 'text-yellow-400 fill-yellow-400 animate-star-pop' : 'text-gray-200'}`}
+                          style={{ animationDelay: `${star * 0.2}s` }}
+                        />
+                      ))}
+                    </div>
+
+                    <div className="text-sm text-gray-500 mb-6 bg-gray-50 py-3 rounded-xl border border-gray-100">
+                      <div className="flex justify-center gap-6">
+                        <div className="flex flex-col">
+                          <span className="text-xs uppercase tracking-wider font-semibold opacity-70">Used</span>
+                          <span className={`font-bold text-lg ${blocks.length <= (Math.abs(level.goal.x - level.start.x) + Math.abs(level.goal.y - level.start.y) + 2) ? 'text-green-600' : 'text-gray-700'}`}>
+                            {blocks.length}
+                          </span>
+                        </div>
+                        <div className="w-px bg-gray-200"></div>
+                        <div className="flex flex-col">
+                          <span className="text-xs uppercase tracking-wider font-semibold opacity-70">3-Star Goal</span>
+                          <span className="font-bold text-lg text-yellow-600">
+                            ≤ {Math.abs(level.goal.x - level.start.x) + Math.abs(level.goal.y - level.start.y) + 2}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="space-y-3">
+                      <button
+                        onClick={() => {
+                          setShowResultModal(false);
+                          onNext();
+                        }}
+                        className="w-full py-3.5 bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-600 hover:to-emerald-700 text-white rounded-xl font-bold shadow-lg shadow-green-200 transform transition-transform hover:scale-[1.02] active:scale-95 flex items-center justify-center gap-2"
+                      >
+                        <span>Next Level</span>
+                        <ArrowNext size={20} />
+                      </button>
+                      <button
+                        onClick={() => {
+                          setShowResultModal(false);
+                          resetGame();
+                        }}
+                        className="w-full py-3 bg-white border border-gray-200 text-gray-600 hover:bg-gray-50 rounded-xl font-semibold transition-colors flex items-center justify-center gap-2"
+                      >
+                        <RotateCcw size={18} />
+                        <span>Replay</span>
+                      </button>
+                    </div>
+                  </>
+                ) : (
+                  <>
+                    <div className="mx-auto w-20 h-20 bg-red-100 rounded-full flex items-center justify-center mb-4 animate-shake shadow-lg shadow-red-200">
+                      <div className="text-4xl">
+                        {failureReason === 'crashed' ? '💥' : '⚠️'}
+                      </div>
+                    </div>
+                    <h2 className="text-2xl font-bold text-gray-800 mb-2">Try Again!</h2>
+                    <p className="text-gray-500 mb-6">
+                      {failureReason === 'crashed' ? t.messages?.crashed :
+                        failureReason === 'bounds' ? t.messages?.bounds :
+                          t.messages?.incomplete}
+                    </p>
+                    <button
+                      onClick={() => {
+                        setShowResultModal(false);
+                        resetGame();
+                      }}
+                      className="w-full py-3 bg-gray-900 text-white hover:bg-gray-800 rounded-xl font-bold shadow-lg transition-all flex items-center justify-center gap-2"
+                    >
+                      <RotateCcw size={18} />
+                      <span>Retry</span>
+                    </button>
+                  </>
+                )}
+              </div>
             </div>
-          )}
-
-          <div className="relative z-10">
-            {gameStatus === 'success' ? (
-              <>
-                <div className="mx-auto w-24 h-24 bg-yellow-100 rounded-full flex items-center justify-center mb-4 animate-victory shadow-lg shadow-yellow-200">
-                  <div className="text-5xl drop-shadow-md">🏆</div>
-                </div>
-                <h2 className="text-3xl font-black text-gray-800 mb-2 tracking-tight">Level Complete!</h2>
-
-                <div className="flex justify-center gap-2 mb-4">
-                  {[1, 2, 3].map(star => (
-                    <Star
-                      key={star}
-                      className={`w-8 h-8 ${star <= earnedStars ? 'text-yellow-400 fill-yellow-400 animate-star-pop' : 'text-gray-200'}`}
-                      style={{ animationDelay: `${star * 0.2}s` }}
-                    />
-                  ))}
-                </div>
-
-                <div className="text-sm text-gray-500 mb-6 bg-gray-50 py-3 rounded-xl border border-gray-100">
-                  <div className="flex justify-center gap-6">
-                    <div className="flex flex-col">
-                      <span className="text-xs uppercase tracking-wider font-semibold opacity-70">Used</span>
-                      <span className={`font-bold text-lg ${blocks.length <= (Math.abs(level.goal.x - level.start.x) + Math.abs(level.goal.y - level.start.y) + 2) ? 'text-green-600' : 'text-gray-700'}`}>
-                        {blocks.length}
-                      </span>
-                    </div>
-                    <div className="w-px bg-gray-200"></div>
-                    <div className="flex flex-col">
-                      <span className="text-xs uppercase tracking-wider font-semibold opacity-70">3-Star Goal</span>
-                      <span className="font-bold text-lg text-yellow-600">
-                        ≤ {Math.abs(level.goal.x - level.start.x) + Math.abs(level.goal.y - level.start.y) + 2}
-                      </span>
-                    </div>
-                  </div>
-                </div>
-
-                <div className="space-y-3">
-                  <button
-                    onClick={() => {
-                      setShowResultModal(false);
-                      onNext();
-                    }}
-                    className="w-full py-3.5 bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-600 hover:to-emerald-700 text-white rounded-xl font-bold shadow-lg shadow-green-200 transform transition-transform hover:scale-[1.02] active:scale-95 flex items-center justify-center gap-2"
-                  >
-                    <span>Next Level</span>
-                    <ArrowNext size={20} />
-                  </button>
-                  <button
-                    onClick={() => {
-                      setShowResultModal(false);
-                      resetGame();
-                    }}
-                    className="w-full py-3 bg-white border border-gray-200 text-gray-600 hover:bg-gray-50 rounded-xl font-semibold transition-colors flex items-center justify-center gap-2"
-                  >
-                    <RotateCcw size={18} />
-                    <span>Replay</span>
-                  </button>
-                </div>
-              </>
-            ) : (
-              <>
-                <div className="mx-auto w-20 h-20 bg-red-100 rounded-full flex items-center justify-center mb-4 animate-shake shadow-lg shadow-red-200">
-                  <div className="text-4xl">
-                    {failureReason === 'crashed' ? '💥' : '⚠️'}
-                  </div>
-                </div>
-                <h2 className="text-2xl font-bold text-gray-800 mb-2">Try Again!</h2>
-                <p className="text-gray-500 mb-6">
-                  {failureReason === 'crashed' ? t.messages?.crashed :
-                    failureReason === 'bounds' ? t.messages?.bounds :
-                      t.messages?.incomplete}
-                </p>
-                <button
-                  onClick={() => {
-                    setShowResultModal(false);
-                    resetGame();
-                  }}
-                  className="w-full py-3 bg-gray-900 text-white hover:bg-gray-800 rounded-xl font-bold shadow-lg transition-all flex items-center justify-center gap-2"
-                >
-                  <RotateCcw size={18} />
-                  <span>Retry</span>
-                </button>
-              </>
-            )}
           </div>
-        </div>
-      )}
-      </div>
-    );
-  };
+        )}
+    </div>
+  );
+};
 
-  export default GameLevel;
+export default GameLevel;
