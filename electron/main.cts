@@ -11,10 +11,13 @@ function createWindow() {
         width: 1200,
         height: 800,
         webPreferences: {
-            preload: path.join(__dirname, 'preload.js'),
+            preload: path.join(__dirname, 'preload.cjs'),
             nodeIntegration: true,
             contextIsolation: false, // For simple projects, you might want this false or handle IPC in preload
         },
+        icon: app.isPackaged
+            ? path.join(__dirname, '../dist/brainiac-logo.png')
+            : path.join(__dirname, '../public/brainiac-logo.png'),
     });
 
     if (process.env.VITE_DEV_SERVER_URL) {

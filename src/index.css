@@ -190,3 +190,194 @@
 .animate-crash-pulse {
   animation: crash-pulse 0.5s ease-out;
 }
+
+/* Block Pop-in Animation */
+@keyframes block-pop {
+  0% {
+    transform: scale(0.8);
+    opacity: 0;
+  }
+
+  50% {
+    transform: scale(1.05);
+  }
+
+  100% {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+
+.animate-block-pop {
+  animation: block-pop 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+/* START Cell Glow - Blue */
+@keyframes glow-pulse-blue {
+
+  0%,
+  100% {
+    opacity: 0.4;
+  }
+
+  50% {
+    opacity: 0.8;
+  }
+}
+
+.animate-glow-pulse-blue {
+  animation: glow-pulse-blue 2s ease-in-out infinite;
+}
+
+/* GOAL Cell Glow - Gold */
+@keyframes glow-pulse-gold {
+
+  0%,
+  100% {
+    opacity: 0.5;
+  }
+
+  50% {
+    opacity: 1;
+  }
+}
+
+.animate-glow-pulse-gold {
+  animation: glow-pulse-gold 1.5s ease-in-out infinite;
+}
+
+/* Block Execution Highlight */
+@keyframes block-execute {
+
+  0%,
+  100% {
+    box-shadow: 0 0 0 0 rgba(251, 191, 36, 0.7);
+  }
+
+  50% {
+    box-shadow: 0 0 0 6px rgba(251, 191, 36, 0);
+  }
+}
+
+.animate-block-execute {
+  animation: block-execute 0.6s ease-in-out infinite;
+}
+
+/* Enhanced Confetti Animation */
+@keyframes confetti {
+  0% {
+    transform: translateY(0) scale(0) rotate(0deg);
+    opacity: 0;
+  }
+
+  10% {
+    opacity: 1;
+  }
+
+  100% {
+    transform: translateY(-150px) scale(1) rotate(720deg);
+    opacity: 0;
+  }
+}
+
+.animate-confetti {
+  animation: confetti 2s ease-out forwards;
+}
+
+/* Ambient Theme Animations */
+
+/* Forest: Falling Leaves */
+@keyframes leaf-fall {
+  0% {
+    transform: translateY(-20px) translateX(0) rotate(0deg);
+    opacity: 0;
+  }
+
+  10% {
+    opacity: 0.6;
+  }
+
+  90% {
+    opacity: 0.4;
+  }
+
+  100% {
+    transform: translateY(100vh) translateX(30px) rotate(180deg);
+    opacity: 0;
+  }
+}
+
+.animate-leaf-fall {
+  animation: leaf-fall 8s linear infinite;
+}
+
+/* Water: Ripple Effect */
+@keyframes water-ripple {
+  0% {
+    transform: scale(0);
+    opacity: 0.5;
+  }
+
+  50% {
+    opacity: 0.3;
+  }
+
+  100% {
+    transform: scale(3);
+    opacity: 0;
+  }
+}
+
+.animate-water-ripple {
+  animation: water-ripple 3s ease-out infinite;
+}
+
+/* Dungeon: Floating Dust */
+@keyframes dust-float {
+  0% {
+    transform: translateY(0) translateX(0);
+    opacity: 0;
+  }
+
+  10% {
+    opacity: 0.3;
+  }
+
+  90% {
+    opacity: 0.2;
+  }
+
+  100% {
+    transform: translateY(-80px) translateX(20px);
+    opacity: 0;
+  }
+}
+
+.animate-dust-float {
+  animation: dust-float 10s ease-in-out infinite;
+}
+
+/* Fire: Rising Embers */
+@keyframes ember-rise {
+  0% {
+    transform: translateY(20px) scale(0);
+    opacity: 0;
+  }
+
+  20% {
+    opacity: 0.8;
+  }
+
+  80% {
+    opacity: 0.6;
+  }
+
+  100% {
+    transform: translateY(-100px) scale(1);
+    opacity: 0;
+  }
+}
+
+.animate-ember-rise {
+  animation: ember-rise 4s ease-out infinite;
+}

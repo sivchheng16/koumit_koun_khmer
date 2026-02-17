@@ -125,10 +125,10 @@ const HomePage: React.FC<HomePageProps> = ({
                         const groupLevels = initialLevels.filter(l => l.id >= group.range[0] && l.id <= group.range[1]);
 
                         // Only show group if previous group is at least partially started or it's the first group
-                        const previousGroupEnd = group.range[0] - 1;
-                        const isGroupLocked = groupIdx > 0 && !levelProgress[previousGroupEnd];
+                        // const previousGroupEnd = group.range[0] - 1;
+                        // const isGroupLocked = groupIdx > 0 && !levelProgress[previousGroupEnd];
 
-                        if (isGroupLocked) return null;
+                        // if (isGroupLocked) return null;  // Disabled: Show all level groups
 
                         return (
                             <div key={group.name} className="animate-in slide-in-from-bottom-4 fade-in duration-500" style={{ animationDelay: `${groupIdx * 100}ms` }}>

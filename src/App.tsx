@@ -219,7 +219,8 @@ const App: React.FC = () => {
               onPlay={handlePlayLevel}
               language={language}
               stars={levelProgress[selectedLevel.id] || 0}
-              isLocked={selectedLevel.id !== 1 && selectedLevel.id > 1 && !levelProgress[selectedLevel.id - 1] && selectedLevel.id !== 0}
+              isLocked={false}
+            // Old locking logic (disabled): isLocked={selectedLevel.id !== 1 && selectedLevel.id > 1 && !levelProgress[selectedLevel.id - 1] && selectedLevel.id !== 0}
             />
           )}
         </>

@@ -1,5 +1,5 @@
 import React, { useState, useRef, useCallback, useEffect } from 'react';
-import { Play, RotateCcw, ArrowUp, ArrowDown, ArrowLeft, ArrowRight, Trash2, HelpCircle, ArrowRight as ArrowNext, Home, ChevronsUp, ChevronsDown, ChevronsLeft, ChevronsRight, Undo, Redo, Volume2, VolumeX, Star, RefreshCw, Waves, Flame, Trees, Mountain, Check, ThumbsUp, AlertTriangle, XCircle, GripVertical, Replace, CheckCircle } from 'lucide-react';
+import { Play, RotateCcw, ArrowUp, ArrowDown, ArrowLeft, ArrowRight, Trash2, HelpCircle, ArrowRight as ArrowNext, Home, ChevronsUp, ChevronsDown, ChevronsLeft, ChevronsRight, Undo, Redo, Volume2, VolumeX, Star, RefreshCw, Waves, Flame, Trees, Mountain, Check, ThumbsUp, AlertTriangle, XCircle, GripVertical, Replace, CheckCircle, Code, Square } from 'lucide-react';
 import { LevelConfig, CommandBlock, CommandType, Direction, Position, SimulationStep, ObstacleType, Language } from '../types';
 import { TRANSLATIONS } from '../constants';
 // import { void } from '../services/geminiService';
@@ -39,6 +39,12 @@ const GameLevel: React.FC<GameLevelProps> = ({ level, onBack, onNext, onComplete
   const [showResultModal, setShowResultModal] = useState(false);
   const [showEntry, setShowEntry] = useState(true);
 
+  const messagesEndRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [blocks.length]);
+
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
@@ -62,10 +68,17 @@ const GameLevel: React.FC<GameLevelProps> = ({ level, onBack, onNext, onComplete
   // Responsive sizing configuration
   const sizing = {
     // Dynamic cell sizing handles the grid, icon sizes below are for internal SVG scaling relative to cell
-    icon: gridMetrics.cellSize * 0.6, // Relative to dynamic cell size
-    robot: gridMetrics.cellSize * 0.8,
-    goal: gridMetrics.cellSize * 0.7,
+    icon: gridMetrics.cellSize * 0.6,    // Relative to dynamic cell size (for obstacle icons)
+    robot: gridMetrics.cellSize * 0.7,   // Robot emoji - reduced from 0.8 for better fit
+    goal: gridMetrics.cellSize * 0.7,    // Goal flag emoji
+    trophy: gridMetrics.cellSize * 0.75, // Trophy emoji - slightly larger for celebration impact
   };
+
+  // Memoize optimal block count to prevent re-render loops
+  const optimalBlockCount = React.useMemo(() => {
+    return Math.abs(level.goal.x - level.start.x) + Math.abs(level.goal.y - level.start.y) + 2;
+  }, [level.goal.x, level.goal.y, level.start.x, level.start.y]);
+
 
   // Reset when level changes
   useEffect(() => {
@@ -290,6 +303,14 @@ const GameLevel: React.FC<GameLevelProps> = ({ level, onBack, onNext, onComplete
       type,
     };
     updateBlocksWithHistory([...blocks, newBlock]);
+
+    // Trigger pop-in animation by adding a temporary class
+    setTimeout(() => {
+      const blockElement = document.querySelector(`[data-block-id="${newBlock.id}"]`);
+      if (blockElement) {
+        blockElement.classList.add('animate-block-pop');
+      }
+    }, 10);
   };
 
   const removeBlock = (id: string, e?: React.MouseEvent) => {
@@ -403,9 +424,9 @@ const GameLevel: React.FC<GameLevelProps> = ({ level, onBack, onNext, onComplete
   };
 
   const calculateStars = (numBlocks: number): number => {
-    const minDistance = Math.abs(level.goal.x - level.start.x) + Math.abs(level.goal.y - level.start.y);
-    if (numBlocks <= minDistance + 2) return 3;
-    if (numBlocks <= minDistance + 5) return 2;
+    const minDistance = optimalBlockCount;
+    if (numBlocks <= minDistance) return 3;
+    if (numBlocks <= minDistance + 3) return 2;
     return 1;
   };
 
@@ -481,7 +502,7 @@ const GameLevel: React.FC<GameLevelProps> = ({ level, onBack, onNext, onComplete
 
             timerRef.current = setTimeout(() => {
               setShowResultModal(true);
-            }, 2500);
+            }, 1000); // Reduced from 2500ms for more immediate feedback
           }, 500);
         }, 600);
 
@@ -527,13 +548,16 @@ const GameLevel: React.FC<GameLevelProps> = ({ level, onBack, onNext, onComplete
     setIsLoadingHint(false);
   };
 
+  // Theme detection (moved to component level for use in multiple places)
+  const isForest = level.id <= 20;
+  const isWater = level.id > 20 && level.id <= 40;
+  const isDungeon = level.id > 40 && level.id <= 60;
+  const isFire = level.id > 60 && level.id <= 80;
+
   // Render Grid
   const renderGrid = () => {
     const cells = [];
-    const isForest = level.id <= 20; // Rough heuristic or use level.description keywords
-    const isWater = level.id > 20 && level.id <= 40;
-    const isDungeon = level.id > 40 && level.id <= 60;
-    const isFire = level.id > 60 && level.id <= 80;
+    // Note: theme detection moved to component level
 
     // Base colors based on theme
     const oddColor = isWater ? 'bg-blue-50/50' : isDungeon ? 'bg-slate-100' : isFire ? 'bg-orange-50/50' : 'bg-stone-50';
@@ -544,6 +568,7 @@ const GameLevel: React.FC<GameLevelProps> = ({ level, onBack, onNext, onComplete
       const y = Math.floor(i / level.gridSize);
       const isStart = x === level.start.x && y === level.start.y;
       const isGoal = x === level.goal.x && y === level.goal.y;
+      const isActive = gameStatus === 'idle' || gameStatus === 'running';
 
       const cellObstacles = level.obstacles.filter(obs => obs.x === x && obs.y === y);
       const hasObstacle = cellObstacles.length > 0;
@@ -580,7 +605,6 @@ const GameLevel: React.FC<GameLevelProps> = ({ level, onBack, onNext, onComplete
           if (type === 'rock') {
             cellContent = (
               <div className="relative flex items-center justify-center w-full h-full -translate-y-2 transform transition-transform hover:scale-110 duration-300">
-                <div className="absolute bottom-2 w-3/4 h-2 bg-black/20 rounded-full blur-[2px]"></div>
                 <Mountain className="text-stone-600 fill-stone-400 drop-shadow-xl z-10" size={sizing.icon * 1.2} strokeWidth={1.5} />
               </div>
             );
@@ -589,7 +613,6 @@ const GameLevel: React.FC<GameLevelProps> = ({ level, onBack, onNext, onComplete
           } else if (type === 'forest') {
             cellContent = (
               <div className="relative flex items-center justify-center w-full h-full -translate-y-2 transform transition-transform hover:scale-110 duration-300">
-                <div className="absolute bottom-2 w-3/4 h-2 bg-black/20 rounded-full blur-[2px]"></div>
                 <Trees className="text-green-700 fill-green-200/50 drop-shadow-xl z-10" size={sizing.icon * 1.2} strokeWidth={1.5} />
               </div>
             );
@@ -627,10 +650,10 @@ const GameLevel: React.FC<GameLevelProps> = ({ level, onBack, onNext, onComplete
           cellContent = (
             <div className="relative flex items-center justify-center w-full h-full overflow-visible z-20 -translate-y-3">
               <div className="absolute inset-0 bg-yellow-300 rounded-full blur-md opacity-60 animate-pulse top-3"></div>
-              <div className={`text-[${sizing.goal}px] animate-goal-pop z-20 filter drop-shadow-xl relative`}>
+              <div className="animate-goal-pop z-20 filter drop-shadow-xl relative" style={{ fontSize: `${sizing.trophy}px` }}>
                 🏆
-                <span className="absolute -top-2 -right-3 text-lg animate-bounce [animation-delay:0.1s]">✨</span>
-                <span className="absolute -bottom-1 -left-3 text-lg animate-bounce [animation-delay:0.3s]">✨</span>
+                <span className="absolute -top-2 -right-3 animate-bounce [animation-delay:0.1s]" style={{ fontSize: `${sizing.trophy * 0.4}px` }}>✨</span>
+                <span className="absolute -bottom-1 -left-3 animate-bounce [animation-delay:0.3s]" style={{ fontSize: `${sizing.trophy * 0.4}px` }}>✨</span>
               </div>
             </div>
           );
@@ -638,8 +661,7 @@ const GameLevel: React.FC<GameLevelProps> = ({ level, onBack, onNext, onComplete
         } else {
           cellContent = (
             <div className="relative flex items-center justify-center w-full h-full -translate-y-2">
-              <div className="absolute bottom-2 w-1/2 h-1.5 bg-black/20 rounded-full blur-[1px]"></div>
-              <div className={`text-[${sizing.goal}px] animate-bounce filter drop-shadow-lg z-10`} title={t.goal}>🚩</div>
+              <div className="filter drop-shadow-lg z-10" style={{ fontSize: `${sizing.goal}px` }} title={t.goal}>🚩</div>
             </div>
           );
         }
@@ -666,9 +688,24 @@ const GameLevel: React.FC<GameLevelProps> = ({ level, onBack, onNext, onComplete
           title={obstacleTitle}
         >
           {/* Cell Coordinate Label (Subtle) */}
-          <span className="absolute top-1 left-1.5 text-[10px] font-mono font-bold text-gray-300/50 select-none pointer-events-none">
+          {/* <span className="absolute top-1 left-1.5 text-[10px] font-mono font-bold text-gray-400/60 group-hover:text-gray-500 group-hover:scale-110 select-none pointer-events-none transition-all duration-200">
             {String.fromCharCode(65 + y)}{x}
-          </span>
+          </span> */}
+
+          {/* START Cell Glow */}
+          {isStart && isActive && (
+            <div className="absolute inset-0 rounded-xl animate-glow-pulse-blue pointer-events-none">
+              <div className="absolute inset-0 rounded-xl ring-2 ring-blue-400/50 ring-offset-2 ring-offset-white/50"></div>
+            </div>
+          )}
+
+          {/* GOAL Cell Glow */}
+          {isGoal && !cellContent && gameStatus !== 'success' && (
+            <div className="absolute inset-0 rounded-xl animate-glow-pulse-gold pointer-events-none">
+              <div className="absolute inset-0 rounded-xl ring-2 ring-yellow-400/60 ring-offset-2 ring-offset-white/50"></div>
+            </div>
+          )}
+
           {isStart && <div className="absolute inset-0 flex items-center justify-center opacity-20"><span className="text-2xl font-black">START</span></div>}
           {cellContent}
         </div>
@@ -766,21 +803,116 @@ const GameLevel: React.FC<GameLevelProps> = ({ level, onBack, onNext, onComplete
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [gameStatus, addBlock, handleRun, handleUndo, handleRedo]);
 
+  // Theme-specific colors and styles
+  const themeColors = {
+    bg: isForest ? 'bg-gradient-to-br from-green-50 via-emerald-50 to-green-100' :
+      isWater ? 'bg-gradient-to-br from-blue-50 via-cyan-50 to-blue-100' :
+        isDungeon ? 'bg-gradient-to-br from-slate-100 via-gray-100 to-slate-200' :
+          isFire ? 'bg-gradient-to-br from-orange-50 via-red-50 to-orange-100' :
+            'bg-stone-100/50',
+    levelColor: isForest ? 'text-green-500' :
+      isWater ? 'text-blue-500' :
+        isDungeon ? 'text-slate-500' :
+          isFire ? 'text-orange-500' : 'text-white',
+    pattern: isForest ? 'bg-[radial-gradient(#22c55e_1px,transparent_1px)]' :
+      isWater ? 'bg-[radial-gradient(#3b82f6_1px,transparent_1px)]' :
+        isDungeon ? 'bg-[linear-gradient(45deg,#64748b_25%,transparent_25%,transparent_75%,#64748b_75%,#64748b),linear-gradient(45deg,#64748b_25%,transparent_25%,transparent_75%,#64748b_75%,#64748b)]' :
+          isFire ? 'bg-[radial-gradient(circle,#f97316_1px,transparent_1px)]' :
+            'bg-[radial-gradient(#e5e7eb_1px,transparent_1px)]'
+  };
+
   return (
     <div className="flex flex-col h-screen bg-gray-50 overflow-hidden select-none">
-      {/* Background Decoration */}
+      {/* Background Decoration with Theme */}
       <div className="absolute inset-0 overflow-hidden pointer-events-none">
-        <div className="absolute top-0 left-0 w-full h-full opacity-30 bg-[radial-gradient(#e5e7eb_1px,transparent_1px)] [background-size:16px_16px]"></div>
+        <div className={`absolute top-0 left-0 w-full h-full opacity-20 ${themeColors.pattern} [background-size:16px_16px]`}></div>
       </div>
 
-      {/* Level Entry Overlay */}
+      {/* Ambient Theme Animations */}
+      {isForest && (
+        <div className="absolute inset-0 pointer-events-none overflow-hidden z-0">
+          {[...Array(6)].map((_, i) => (
+            <div
+              key={i}
+              className="absolute text-2xl animate-leaf-fall"
+              style={{
+                left: `${10 + i * 15}%`,
+                animationDelay: `${i * 1.3}s`,
+                animationDuration: `${7 + Math.random() * 3}s`
+              }}
+            >
+              🍃
+            </div>
+          ))}
+        </div>
+      )}
+
+      {isWater && (
+        <div className="absolute inset-0 pointer-events-none overflow-hidden z-0">
+          {[...Array(4)].map((_, i) => (
+            <div
+              key={i}
+              className="absolute w-24 h-24 rounded-full border-2 border-blue-300/30 animate-water-ripple"
+              style={{
+                left: `${20 + i * 20}%`,
+                top: `${30 + i * 10}%`,
+                animationDelay: `${i * 0.8}s`
+              }}
+            />
+          ))}
+        </div>
+      )}
+
+      {isDungeon && (
+        <div className="absolute inset-0 pointer-events-none overflow-hidden z-0">
+          {[...Array(8)].map((_, i) => (
+            <div
+              key={i}
+              className="absolute w-1 h-1 bg-gray-400/40 rounded-full animate-dust-float"
+              style={{
+                left: `${5 + i * 12}%`,
+                bottom: '0',
+                animationDelay: `${i * 1.5}s`,
+                animationDuration: `${8 + Math.random() * 4}s`
+              }}
+            />
+          ))}
+        </div>
+      )}
+
+      {isFire && (
+        <div className="absolute inset-0 pointer-events-none overflow-hidden z-0">
+          {[...Array(8)].map((_, i) => (
+            <div
+              key={i}
+              className="absolute text-lg animate-ember-rise"
+              style={{
+                left: `${10 + i * 11}%`,
+                bottom: '10%',
+                animationDelay: `${i * 0.6}s`,
+                filter: 'blur(1px)'
+              }}
+            >
+              ✨
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Level Entry Overlay with Enhanced Typography */}
       {showEntry && (
         <div className="absolute inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm animate-out fade-out duration-500 delay-1500 fill-mode-forwards pointer-events-none">
           <div className="text-center animate-in zoom-in duration-500">
-            <h1 className="text-6xl font-black text-white drop-shadow-lg mb-2 tracking-tighter">
+            <h1
+              className={`text-7xl font-black mb-2 tracking-tighter ${themeColors.levelColor}`}
+              style={{
+                textShadow: '0 0 20px rgba(0,0,0,0.5), 0 4px 8px rgba(0,0,0,0.3)',
+                WebkitTextStroke: '2px rgba(255,255,255,0.8)'
+              }}
+            >
               LEVEL {level.id}
             </h1>
-            <div className="h-1 w-32 bg-white/50 mx-auto rounded-full"></div>
+            <div className={`h-1 w-32 mx-auto rounded-full ${themeColors.levelColor.replace('text-', 'bg-')} opacity-80 shadow-lg`}></div>
           </div>
         </div>
       )}
@@ -802,6 +934,27 @@ const GameLevel: React.FC<GameLevelProps> = ({ level, onBack, onNext, onComplete
               {isTutorial && <span className="text-xs px-2 py-0.5 bg-blue-100 text-blue-700 rounded-full">Tutorial</span>}
             </h2>
             <p className="text-xs text-gray-500">{level.instruction || (language === 'km' ? 'បញ្ជាមនុស្សយន្តទៅកាន់គោលដៅ' : 'Guide the robot to the goal')}</p>
+          </div>
+
+          {/* Block Count Indicator */}
+          <div className="ml-auto mr-4">
+            <div className="flex items-center gap-2 px-3 py-1.5 bg-gray-50 rounded-lg border border-gray-200">
+              <Square size={14} className="text-gray-400" />
+              <span className={
+                `font-bold text-sm transition-colors ${blocks.length <= optimalBlockCount
+                  ? 'text-green-600'
+                  : blocks.length <= optimalBlockCount + 3
+                    ? 'text-yellow-600'
+                    : 'text-red-600'
+                }`
+              }>
+                {blocks.length}
+              </span>
+              <span className="text-xs text-gray-400">/</span>
+              <span className="text-xs text-gray-500 font-medium">
+                {optimalBlockCount}
+              </span>
+            </div>
           </div>
         </div>
 
@@ -829,7 +982,7 @@ const GameLevel: React.FC<GameLevelProps> = ({ level, onBack, onNext, onComplete
       <div className="flex-1 overflow-hidden relative flex flex-col md:flex-row">
 
         {/* Left: Grid Container */}
-        <div className="flex-1 relative overflow-auto bg-stone-100/50 flex flex-col">
+        <div className={`flex-1 relative overflow-auto ${themeColors.bg} flex flex-col`}>
 
           {/* Hint Banner */}
           {hint && (
@@ -848,31 +1001,31 @@ const GameLevel: React.FC<GameLevelProps> = ({ level, onBack, onNext, onComplete
           )}
 
           {/* Grid Area */}
-          <div ref={gridContainerRef} className="flex-1 relative flex items-center justify-center p-4 bg-stone-100/50 overflow-hidden">
+          <div ref={gridContainerRef} className={`flex-1 relative flex items-center justify-center p-4 ${themeColors.bg} overflow-hidden`}>
 
             {/* Coordinate Labels - Top (Columns) */}
-            <div className="absolute top-4 left-0 w-full flex justify-center pointer-events-none z-10"
+            {/* <div className="absolute top-4 left-0 w-full flex justify-center pointer-events-none z-10"
               style={{ paddingLeft: gridMetrics.gridLeft, width: '100%' }}>
               <div className="flex" style={{ width: gridMetrics.cellSize * level.gridSize + gridMetrics.gapSize * (level.gridSize - 1) }}>
                 {Array.from({ length: level.gridSize }).map((_, i) => (
-                  <div key={i} className="flex-1 text-center font-bold text-stone-400/80 text-lg select-none">
+                  <div key={i} className="flex-1 text-center font-black text-stone-500/70 text-xl select-none transition-all hover:text-stone-600 hover:scale-110">
                     {i}
                   </div>
                 ))}
               </div>
-            </div>
+            </div> */}
 
             {/* Coordinate Labels - Left (Rows) */}
-            <div className="absolute left-4 top-0 h-full flex flex-col justify-center pointer-events-none z-10"
+            {/* <div className="absolute left-4 top-0 h-full flex flex-col justify-center pointer-events-none z-10"
               style={{ paddingTop: gridMetrics.gridTop, height: '100%' }}>
               <div className="flex flex-col" style={{ height: gridMetrics.cellSize * level.gridSize + gridMetrics.gapSize * (level.gridSize - 1) }}>
                 {Array.from({ length: level.gridSize }).map((_, i) => (
-                  <div key={i} className="flex-1 flex items-center justify-center font-bold text-stone-400/80 text-lg select-none">
+                  <div key={i} className="flex-1 flex items-center justify-center font-black text-stone-500/70 text-xl select-none transition-all hover:text-stone-600 hover:scale-110">
                     {String.fromCharCode(65 + i)}
                   </div>
                 ))}
               </div>
-            </div>
+            </div> */}
 
 
             <div className="relative w-full h-full">
@@ -881,7 +1034,11 @@ const GameLevel: React.FC<GameLevelProps> = ({ level, onBack, onNext, onComplete
 
               {/* Robot Overlay */}
               <div
-                className="absolute z-30 transition-all duration-500 ease-[cubic-bezier(0.34,1.56,0.64,1)] flex items-center justify-center pointer-events-none"
+                className={`
+                  absolute z-30 transition-all duration-500
+                  flex items-center justify-center pointer-events-none
+                  ${isJumping ? 'ease-linear' : 'ease-[cubic-bezier(0.34,1.56,0.64,1)]'}
+                `}
                 style={{
                   width: gridMetrics.cellSize,
                   height: gridMetrics.cellSize,
@@ -893,226 +1050,311 @@ const GameLevel: React.FC<GameLevelProps> = ({ level, onBack, onNext, onComplete
                 <div className={`
                                 relative w-full h-full flex items-center justify-center
                                 transition-transform duration-300
-                                ${isJumping ? 'scale-110 -translate-y-4 shadow-xl' : ''}
+                                ${isJumping ? 'scale-110 -translate-y-4' : ''}
                             `}>
-                  <div className={`transform transition-transform duration-300 ${isJumping ? 'animate-jump-arc' : ''}`}
+                  <div
+                    key={currentStepIndex}
+                    className={`transform transition-transform duration-300 ${isJumping ? 'animate-jump-arc' : ''}`}
                   >
-                    <span className={`${sizing.robot} filter drop-shadow-xl loading-none select-none relative z-10 block`}>
+                    <span className="filter drop-shadow-xl loading-none select-none relative z-10 block" style={{ fontSize: `${sizing.robot}px` }}>
                       {gameStatus === 'success' ? '🥳' :
                         gameStatus === 'failure' ? '😵' :
                           gameStatus === 'running' ? '🤖' : '🤖'}
                     </span>
-                    {/* Simple shadow */}
-                    <div className="absolute bottom-0 left-1/2 -translate-x-1/2 w-2/3 h-1.5 bg-black/30 rounded-full blur-[2px]"></div>
                   </div>
                 </div>
               </div>
             </div>
           </div>
         </div>
-      </div>
 
 
-      {/* Right: Controls Panel */}
-      <div className="w-full md:w-80 lg:w-96 bg-white border-t md:border-t-0 md:border-l border-gray-200 flex flex-col shadow-xl z-20 shrink-0 h-[45%] md:h-full">
 
-        {/* Controls Header */}
-        <div className={`p-3 border-b border-gray-100 flex items-center justify-between transition-colors duration-300 ${selectedBlockId ? 'bg-blue-50' : 'bg-gray-50/50'}`}>
-          <span className={`text-xs font-bold uppercase tracking-wider flex items-center gap-1 ${selectedBlockId ? 'text-blue-600' : 'text-gray-500'}`}>
-            {selectedBlockId ? (
-              <>
-                <RotateCcw size={14} className="animate-spin-slow" />
-                Select to Replace
-              </>
-            ) : (
-              <>
-                <CheckCircle size={14} />
-                Commands
-              </>
-            )}
-          </span>
-          <span className={`text-xs font-mono font-bold px-2 py-0.5 rounded-full transition-colors duration-300 ${blocks.length >= 20 ? 'bg-red-100 text-red-700 animate-pulse' :
-            blocks.length >= 15 ? 'bg-orange-100 text-orange-700' :
-              blocks.length > 0 ? 'bg-blue-100 text-blue-700' : 'bg-gray-100 text-gray-400'
-            }`}>
-            {blocks.length} / 20
-          </span>
-        </div>
+        {/* Right: Controls Panel */}
+        <div className="w-full md:w-80 lg:w-96 bg-white border-t md:border-t-0 md:border-l border-gray-200 flex flex-col shadow-xl z-20 shrink-0 h-[45%] md:h-full">
 
-        {/* Command Palette */}
-        <div className="p-4 space-y-4 bg-gray-50/30 overflow-y-auto max-h-[40%] md:max-h-none border-b border-gray-100">
 
-          {/* Movement Commands */}
-          <div>
-            <h3 className="text-[10px] font-bold text-gray-400 uppercase mb-2 tracking-wider flex items-center gap-1">
-              <Play size={10} className="fill-current" />
-              {language === 'km' ? 'ចលនា (Move)' : 'Movement'}
-            </h3>
-            <div className="grid grid-cols-4 gap-2">
-              {[CommandType.Up, CommandType.Down, CommandType.Left, CommandType.Right].map(type => {
-                const label = {
-                  [CommandType.Up]: language === 'km' ? 'ទៅមុខ' : 'Fwd',
-                  [CommandType.Down]: language === 'km' ? 'ថយក្រោយ' : 'Back',
-                  [CommandType.Left]: language === 'km' ? 'ឆ្វេង' : 'Left',
-                  [CommandType.Right]: language === 'km' ? 'ស្តាំ' : 'Right',
-                }[type];
-
-                return (
-                  <button
-                    key={type}
-                    onClick={() => addBlock(type)}
-                    disabled={gameStatus === 'running'}
-                    className={`
-                                  relative group flex flex-col items-center justify-center p-2 rounded-xl border-b-4 transition-all active:border-b-0 active:translate-y-1
-                                  bg-white border-gray-200 hover:border-blue-300 hover:bg-blue-50 text-gray-600
-                                  ${gameStatus === 'running' ? 'opacity-50 cursor-not-allowed' : ''}
-                                  ${getButtonClass('btn-' + type, '')}
-                              `}
-                  >
-                    <div className="mb-1">{renderIcon(type)}</div>
-                    <span className="text-[10px] font-bold leading-none">{label}</span>
-                  </button>
-                );
-              })}
+          {/* Controls Header */}
+          <div className="p-4 border-b border-gray-100 flex items-center justify-between bg-white shrink-0">
+            <span className="text-sm font-bold text-gray-700 flex items-center gap-2">
+              <Code size={18} className="text-blue-500" />
+              {language === 'km' ? 'កម្មវិធីរបស់អ្នក' : 'Your Program'}
+            </span>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={handleUndo}
+                disabled={historyIndex <= 0 || gameStatus === 'running'}
+                className="p-1.5 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg transition-colors disabled:opacity-30"
+                title="⌨️ Ctrl+Z • Backspace/Delete"
+              >
+                <Undo size={16} />
+              </button>
+              <button
+                onClick={handleRedo}
+                disabled={historyIndex >= history.length - 1 || gameStatus === 'running'}
+                className="p-1.5 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg transition-colors disabled:opacity-30"
+                title="⌨️ Ctrl+Shift+Z • Ctrl+Y"
+              >
+                <Redo size={16} />
+              </button>
+              <div className="w-px h-4 bg-gray-300"></div>
+              <button
+                onClick={handleClear}
+                disabled={blocks.length === 0 || gameStatus === 'running'}
+                className="p-1.5 text-red-300 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors disabled:opacity-30"
+                title="Clear All Program Blocks"
+              >
+                <Trash2 size={16} />
+              </button>
             </div>
           </div>
 
-          {/* Jump Commands */}
-          <div>
-            <h3 className="text-[10px] font-bold text-gray-400 uppercase mb-2 tracking-wider flex items-center gap-1">
-              <div className="w-2.5 h-2.5 rounded-full border border-current"></div>
-              {language === 'km' ? 'លោត (Jump)' : 'Jump'}
-            </h3>
-            <div className="grid grid-cols-4 gap-2">
-              {[CommandType.JumpUp, CommandType.JumpDown, CommandType.JumpLeft, CommandType.JumpRight].map(type => {
-                const label = {
-                  [CommandType.JumpUp]: language === 'km' ? 'ទៅមុខ' : 'Fwd',
-                  [CommandType.JumpDown]: language === 'km' ? 'ថយក្រោយ' : 'Back',
-                  [CommandType.JumpLeft]: language === 'km' ? 'ឆ្វេង' : 'Left',
-                  [CommandType.JumpRight]: language === 'km' ? 'ស្តាំ' : 'Right',
-                }[type];
+          {/* Program Queue (Editable Area) - TOP */}
+          <div className="flex-1 overflow-y-auto p-4 bg-gray-50/50 relative">
+            <div className="absolute top-0 left-0 w-full h-full opacity-5 pointer-events-none bg-[radial-gradient(#9ca3af_1px,transparent_1px)] [background-size:16px_16px]"></div>
 
-                return (
-                  <button
-                    key={type}
-                    onClick={() => addBlock(type)}
-                    disabled={gameStatus === 'running'}
-                    className={`
-                                  relative group flex flex-col items-center justify-center p-2 rounded-xl border-b-4 transition-all active:border-b-0 active:translate-y-1
-                                  bg-purple-50 border-purple-200 hover:border-purple-300 hover:bg-purple-100 text-purple-600
-                                  ${gameStatus === 'running' ? 'opacity-50 cursor-not-allowed' : ''}
-                              `}
-                  >
-                    <div className="mb-1">{renderIcon(type)}</div>
-                    <span className="text-[10px] font-bold leading-none">{label}</span>
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-        </div>
+            <div className="min-h-full space-y-2 relative z-10">
+              {blocks.length === 0 && (
+                <div className="absolute inset-0 flex flex-col items-center justify-center text-gray-300 pointer-events-none">
+                  <GripVertical size={48} className="mb-4 opacity-20" />
+                  <p className="text-lg font-medium">Drag commands here</p>
+                  <p className="text-sm opacity-60">or tap buttons below</p>
+                </div>
+              )}
 
-        {/* Program Queue (Editable Area) */}
-        <div className="flex-1 overflow-y-auto p-4 bg-gray-100/50 shadow-inner">
-          <div className="min-h-full space-y-2">
-            {blocks.length === 0 && (
-              <div className="h-32 border-2 border-dashed border-gray-300 rounded-xl flex flex-col items-center justify-center text-gray-400 p-4 text-center">
-                <GripVertical className="mb-2 opacity-50" />
-                <p className="text-sm">Tap commands to build your program</p>
-              </div>
-            )}
-
-            <div className="grid grid-cols-[auto_1fr_auto] gap-2 items-center">
-              {blocks.map((block, index) => (
-                <React.Fragment key={block.id}>
-                  <div className="text-xs font-mono text-gray-300 w-4 text-right">{index + 1}</div>
-                  <div
-                    className={`
-                                        group relative flex items-center gap-3 p-2 rounded-lg border-2 transition-all cursor-pointer select-none
-                                        ${selectedBlockId === block.id
-                        ? 'bg-blue-50 border-blue-400 shadow-md transform scale-[1.02] z-10'
-                        : 'bg-white border-transparent hover:border-gray-200 shadow-sm'
-                      }
-                                        ${currentStepIndex === index ? 'ring-2 ring-yellow-400 ring-offset-1 bg-yellow-50' : ''}
-                                    `}
-                    onClick={() => toggleSelectBlock(block.id)}
-                    draggable={gameStatus !== 'running'}
-                    onDragStart={(e) => handleDragStart(e, index)}
-                    onDragOver={(e) => handleDragOver(e, index)}
-                    onDrop={(e) => handleDrop(e, index)}
-                    onDragEnd={handleDragEnd}
-                  >
-                    <div className="bg-gray-50 p-1.5 rounded-md border border-gray-100">
-                      {renderIcon(block.type)}
+              <div className="grid grid-cols-[auto_1fr_auto] gap-x-3 gap-y-2 items-center">
+                {blocks.map((block, index) => (
+                  <React.Fragment key={block.id}>
+                    {/* Step Number */}
+                    <div className="text-[10px] font-mono font-medium text-gray-400 w-5 text-right pt-0.5 select-none">
+                      {index + 1}
                     </div>
-                    <span className="font-medium text-gray-700 text-sm capitalize">
-                      {block.type.replace('JUMP_', 'Jump ')}
-                    </span>
 
-                    {/* Action Buttons (visible on hover or select) */}
-                    <div className={`absolute right-2 flex items-center gap-1 ${selectedBlockId === block.id ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'} transition-opacity`}>
+                    {/* Command Block Card */}
+                    <div
+                      data-block-id={block.id}
+                      className={`
+                      group relative flex items-center gap-3 p-2 rounded-xl border transition-all cursor-pointer select-none
+                      ${selectedBlockId === block.id
+                          ? 'bg-blue-50 border-blue-300 shadow-md transform scale-[1.01] z-10'
+                          : currentStepIndex === index && gameStatus === 'running'
+                            ? 'bg-yellow-50 border-yellow-400 ring-2 ring-yellow-400 ring-offset-2 shadow-lg animate-block-execute'
+                            : gameStatus === 'running'
+                              ? 'bg-white border-gray-200 opacity-40'
+                              : 'bg-white border-gray-200 hover:border-gray-300 shadow-sm hover:shadow-md'
+                        }
+                      ${draggedBlockIndex === index ? 'opacity-30' : ''}
+                      ${currentStepIndex === index ? 'ring-2 ring-yellow-400 ring-offset-2 bg-yellow-50 border-yellow-200' : ''}
+                    `}
+                      onClick={() => toggleSelectBlock(block.id)}
+                      draggable={gameStatus !== 'running'}
+                      onDragStart={(e) => handleDragStart(e, index)}
+                      onDragOver={(e) => handleDragOver(e, index)}
+                      onDrop={(e) => handleDrop(e, index)}
+                      onDragEnd={handleDragEnd}
+                    >
+                      {/* Icon Box */}
+                      <div className={`
+                      w-8 h-8 rounded-lg flex items-center justify-center
+                      ${block.type.toString().includes('JUMP') ? 'bg-purple-100 text-purple-600' : 'bg-green-100 text-green-600'}
+                    `}>
+                        {renderIcon(block.type)}
+                      </div>
+
+                      {/* Text Label */}
+                      <span className="font-semibold text-gray-700 text-sm capitalize">
+                        {block.type.replace('JUMP_', 'Jump ').toLowerCase()}
+                      </span>
+
+                      {/* Remove Button (Hover) */}
                       <button
                         onClick={(e) => removeBlock(block.id, e)}
-                        className="p-1 hover:bg-red-100 text-gray-400 hover:text-red-500 rounded"
+                        className={`
+                        absolute right-2 p-1.5 rounded-lg text-gray-400 hover:text-red-500 hover:bg-red-50 transition-all
+                        ${selectedBlockId === block.id ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'}
+                      `}
                       >
-                        <Trash2 size={14} />
+                        <XCircle size={16} />
                       </button>
-                    </div>
 
-                    {draggedBlockIndex === index && (
-                      <div className="absolute inset-0 bg-blue-500/10 rounded-lg border-2 border-blue-500/50 animate-pulse z-20"></div>
-                    )}
-                  </div>
-                  <div></div> {/* Spacer */}
-                </React.Fragment>
-              ))}
+                      {/* Drag Indicator */}
+                      {draggedBlockIndex === index && (
+                        <div className="absolute inset-0 bg-blue-500/10 rounded-xl border-2 border-blue-500/50 animate-pulse z-20"></div>
+                      )}
+                    </div>
+                    <div></div> {/* Spacer for grid */}
+                  </React.Fragment>
+                ))}
+                {/* Invisible anchor for auto-scroll */}
+                <div ref={messagesEndRef} />
+              </div>
             </div>
           </div>
-        </div>
 
-        {/* Play/Control Footer */}
-        <div className="p-4 border-t border-gray-200 bg-white shadow-[0_-4px_15px_-5px_rgba(0,0,0,0.1)] z-30">
-          <div className="flex items-center gap-3">
-            <button
-              onClick={handleClear}
-              disabled={blocks.length === 0 || gameStatus === 'running'}
-              className="p-3 text-gray-500 hover:bg-red-50 hover:text-red-500 rounded-xl transition-colors shrink-0 border border-gray-200"
-              title="Clear All"
-            >
-              <Trash2 size={20} />
-            </button>
+          {/* Command Palette (Bottom Control Area) */}
+          <div className="bg-white border-t-2 border-gray-300 shadow-[0_-4px_20px_-10px_rgba(0,0,0,0.15)] z-30 shrink-0">
 
-            <div className="flex items-center bg-gray-100 rounded-xl p-1 shrink-0">
-              <button onClick={handleUndo} disabled={historyIndex <= 0 || gameStatus === 'running'} className="p-2 hover:bg-white hover:shadow-sm rounded-lg disabled:opacity-30 disabled:hover:bg-transparent transition-all"><Undo size={18} /></button>
-              <div className="w-px h-4 bg-gray-300 mx-1"></div>
-              <button onClick={handleRedo} disabled={historyIndex >= history.length - 1 || gameStatus === 'running'} className="p-2 hover:bg-white hover:shadow-sm rounded-lg disabled:opacity-30 disabled:hover:bg-transparent transition-all"><Redo size={18} /></button>
+            {/* Section Header with Visual Prominence */}
+            <div className="px-6 pt-4 pb-3 bg-gradient-to-b from-gray-50 to-white">
+              <div className="flex items-center justify-center gap-2 mb-1">
+                <div className="h-px flex-1 bg-gradient-to-r from-transparent to-gray-300"></div>
+                <span className="text-xs font-bold text-gray-500 uppercase tracking-wider flex items-center gap-1.5">
+                  <Code size={14} className="text-blue-500" />
+                  {language === 'km' ? 'ពាក្យបញ្ជា' : 'Commands'}
+                </span>
+                <div className="h-px flex-1 bg-gradient-to-l from-transparent to-gray-300"></div>
+              </div>
+              <p className="text-[10px] text-center text-gray-400 mt-1">⌨️ Arrow Keys • WASD</p>
             </div>
 
-            <button
-              onClick={handleRun}
-              disabled={blocks.length === 0 && gameStatus !== 'running'}
-              className={`
-                            flex-1 h-12 rounded-xl font-bold text-white shadow-lg flex items-center justify-center gap-2 transition-all transform active:scale-95
-                            ${gameStatus === 'running'
-                  ? 'bg-red-500 hover:bg-red-600 shadow-red-200'
-                  : 'bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-600 hover:to-emerald-700 shadow-green-200'
-                }
-                            ${blocks.length === 0 ? 'opacity-50 grayscale cursor-not-allowed' : ''}
-                            ${getButtonClass('btn-run', '')}
-                        `}
-            >
-              {gameStatus === 'running' ? (
-                <>
-                  <RotateCcw size={20} className="animate-spin-slow" />
-                  <span>Stop</span>
-                </>
-              ) : (
-                <>
-                  <Play size={20} className="fill-white" />
-                  <span>Run Code</span>
-                </>
-              )}
-            </button>
+            <div className="px-6 pb-4 grid grid-cols-2 gap-8">
+              {/* LEFT: Movement D-Pad */}
+              <div className="flex flex-col items-center">
+                <div className="text-[10px] font-bold text-green-600 mb-2 uppercase tracking-wider flex items-center gap-1">
+                  <span>Move</span>
+                  <span className="text-gray-400">•</span>
+                  <span className="text-gray-400 font-normal">1 Cell</span>
+                </div>
+                <div className="grid grid-cols-3 gap-2">
+                  <div></div>
+                  <button
+                    onClick={() => addBlock(CommandType.Up)}
+                    disabled={gameStatus === 'running'}
+                    className="w-12 h-12 bg-green-50 rounded-xl border-2 border-green-100 hover:border-green-300 hover:bg-green-100 active:scale-95 transition-all flex items-center justify-center text-green-600 shadow-sm"
+                    title="⌨️ ↑ Arrow Up • W"
+                  >
+                    <ArrowUp size={24} strokeWidth={2.5} />
+                  </button>
+                  <div></div>
+
+                  <button
+                    onClick={() => addBlock(CommandType.Left)}
+                    disabled={gameStatus === 'running'}
+                    className="w-12 h-12 bg-green-50 rounded-xl border-2 border-green-100 hover:border-green-300 hover:bg-green-100 active:scale-95 transition-all flex items-center justify-center text-green-600 shadow-sm"
+                    title="⌨️ ← Arrow Left • A"
+                  >
+                    <ArrowLeft size={24} strokeWidth={2.5} />
+                  </button>
+                  <div className="w-12 h-12 bg-gray-50 rounded-full flex items-center justify-center">
+                    <div className="w-2 h-2 bg-gray-200 rounded-full"></div>
+                  </div>
+                  <button
+                    onClick={() => addBlock(CommandType.Right)}
+                    disabled={gameStatus === 'running'}
+                    className="w-12 h-12 bg-green-50 rounded-xl border-2 border-green-100 hover:border-green-300 hover:bg-green-100 active:scale-95 transition-all flex items-center justify-center text-green-600 shadow-sm"
+                    title="⌨️ → Arrow Right • D"
+                  >
+                    <ArrowRight size={24} strokeWidth={2.5} />
+                  </button>
+
+                  <div></div>
+                  <button
+                    onClick={() => addBlock(CommandType.Down)}
+                    disabled={gameStatus === 'running'}
+                    className="w-12 h-12 bg-green-50 rounded-xl border-2 border-green-100 hover:border-green-300 hover:bg-green-100 active:scale-95 transition-all flex items-center justify-center text-green-600 shadow-sm"
+                    title="⌨️ ↓ Arrow Down • S"
+                  >
+                    <ArrowDown size={24} strokeWidth={2.5} />
+                  </button>
+                  <div></div>
+                </div>
+              </div>
+
+              {/* RIGHT: Jump D-Pad */}
+              <div className="flex flex-col items-center">
+                <div className="text-[10px] font-bold text-purple-600 mb-2 uppercase tracking-wider flex items-center gap-1">
+                  <span>Jump</span>
+                  <span className="text-gray-400">•</span>
+                  <span className="text-gray-400 font-normal">2 Cells</span>
+                </div>
+                <div className="grid grid-cols-3 gap-2">
+                  <div></div>
+                  <button
+                    onClick={() => addBlock(CommandType.JumpUp)}
+                    disabled={gameStatus === 'running'}
+                    className="w-12 h-12 bg-purple-50 rounded-xl border-2 border-purple-100 hover:border-purple-300 hover:bg-purple-100 active:scale-95 transition-all flex items-center justify-center text-purple-600 shadow-sm"
+                    title="Jump Up (2 cells)"
+                  >
+                    <ChevronsUp size={24} strokeWidth={2.5} />
+                  </button>
+                  <div></div>
+
+                  <button
+                    onClick={() => addBlock(CommandType.JumpLeft)}
+                    disabled={gameStatus === 'running'}
+                    className="w-12 h-12 bg-purple-50 rounded-xl border-2 border-purple-100 hover:border-purple-300 hover:bg-purple-100 active:scale-95 transition-all flex items-center justify-center text-purple-600 shadow-sm"
+                    title="Jump Left (2 cells)"
+                  >
+                    <ChevronsLeft size={24} strokeWidth={2.5} />
+                  </button>
+                  <div className="w-12 h-12 bg-gray-50 rounded-full flex items-center justify-center">
+                    <div className="w-2 h-2 bg-gray-200 rounded-full"></div>
+                  </div>
+                  <button
+                    onClick={() => addBlock(CommandType.JumpRight)}
+                    disabled={gameStatus === 'running'}
+                    className="w-12 h-12 bg-purple-50 rounded-xl border-2 border-purple-100 hover:border-purple-300 hover:bg-purple-100 active:scale-95 transition-all flex items-center justify-center text-purple-600 shadow-sm"
+                    title="Jump Right (2 cells)"
+                  >
+                    <ChevronsRight size={24} strokeWidth={2.5} />
+                  </button>
+
+                  <div></div>
+                  <button
+                    onClick={() => addBlock(CommandType.JumpDown)}
+                    disabled={gameStatus === 'running'}
+                    className="w-12 h-12 bg-purple-50 rounded-xl border-2 border-purple-100 hover:border-purple-300 hover:bg-purple-100 active:scale-95 transition-all flex items-center justify-center text-purple-600 shadow-sm"
+                    title="Jump Down (2 cells)"
+                  >
+                    <ChevronsDown size={24} strokeWidth={2.5} />
+                  </button>
+                  <div></div>
+                </div>
+              </div>
+            </div>
+
+            <div className="p-4 bg-gray-50 border-t border-gray-200">
+              <div className="flex gap-3">
+                <button
+                  onClick={() => {
+                    // Confirm reset?
+                    if (window.confirm('Reset level?')) {
+                      resetGame();
+                    }
+                  }}
+                  className="px-4 rounded-xl bg-white border border-gray-200 text-gray-500 hover:text-gray-700 hover:bg-gray-100 font-bold shadow-sm transition-colors"
+                  title="Reset Level"
+                >
+                  <RotateCcw size={20} />
+                </button>
+                <button
+                  onClick={handleRun}
+                  disabled={blocks.length === 0 && gameStatus !== 'running'}
+                  className={`
+                     flex-1 h-14 rounded-xl font-bold text-white text-lg shadow-lg flex items-center justify-center gap-3 transition-all transform active:scale-[0.98]
+                     ${gameStatus === 'running'
+                      ? 'bg-red-500 hover:bg-red-600 shadow-red-200'
+                      : 'bg-gray-900 hover:bg-black shadow-gray-300'
+                    }
+                     ${blocks.length === 0 ? 'opacity-50 grayscale cursor-not-allowed' : ''}
+                  `}
+                  title={gameStatus === 'running' ? 'Stop Execution' : '⌨️ Space • Enter'}
+                >
+                  {gameStatus === 'running' ? (
+                    <>
+                      <Square size={20} className="fill-current" />
+                      STOP
+                    </>
+                  ) : (
+                    <>
+                      <Play size={24} className="fill-current" />
+                      RUN CODE
+                    </>
+                  )}
+                </button>
+              </div>
+            </div>
+
           </div>
         </div>
       </div>
@@ -1149,16 +1391,37 @@ const GameLevel: React.FC<GameLevelProps> = ({ level, onBack, onNext, onComplete
                         <Star
                           key={star}
                           className={`w-8 h-8 ${star <= earnedStars ? 'text-yellow-400 fill-yellow-400 animate-star-pop' : 'text-gray-200'}`}
-                          style={{ animationDelay: `${star * 0.2}s` }}
+                          style={{ animationDelay: `${(star - 1) * 0.15}s` }}
                         />
                       ))}
                     </div>
+
+                    {/* Confetti particles for 3-star completion */}
+                    {earnedStars === 3 && (
+                      <div className="absolute inset-0 pointer-events-none overflow-hidden">
+                        {[...Array(12)].map((_, i) => (
+                          <div
+                            key={i}
+                            className="absolute animate-confetti"
+                            style={{
+                              left: `${20 + (i * 60 / 12)}%`,
+                              top: '60%',
+                              animationDelay: `${i * 0.1}s`,
+                              transform: `rotate(${i * 30}deg)`
+                            }}
+                          >
+                            <div className={`w-2 h-2 rounded-sm ${['bg-yellow-400', 'bg-blue-400', 'bg-green-400', 'bg-pink-400', 'bg-purple-400'][i % 5]
+                              }`}></div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
 
                     <div className="text-sm text-gray-500 mb-6 bg-gray-50 py-3 rounded-xl border border-gray-100">
                       <div className="flex justify-center gap-6">
                         <div className="flex flex-col">
                           <span className="text-xs uppercase tracking-wider font-semibold opacity-70">Used</span>
-                          <span className={`font-bold text-lg ${blocks.length <= (Math.abs(level.goal.x - level.start.x) + Math.abs(level.goal.y - level.start.y) + 2) ? 'text-green-600' : 'text-gray-700'}`}>
+                          <span className={`font-bold text-lg ${blocks.length <= optimalBlockCount ? 'text-green-600' : 'text-gray-700'}`}>
                             {blocks.length}
                           </span>
                         </div>
@@ -1166,7 +1429,7 @@ const GameLevel: React.FC<GameLevelProps> = ({ level, onBack, onNext, onComplete
                         <div className="flex flex-col">
                           <span className="text-xs uppercase tracking-wider font-semibold opacity-70">3-Star Goal</span>
                           <span className="font-bold text-lg text-yellow-600">
-                            ≤ {Math.abs(level.goal.x - level.start.x) + Math.abs(level.goal.y - level.start.y) + 2}
+                            ≤ {optimalBlockCount}
                           </span>
                         </div>
                       </div>
@@ -1197,26 +1460,28 @@ const GameLevel: React.FC<GameLevelProps> = ({ level, onBack, onNext, onComplete
                   </>
                 ) : (
                   <>
-                    <div className="mx-auto w-20 h-20 bg-red-100 rounded-full flex items-center justify-center mb-4 animate-shake shadow-lg shadow-red-200">
-                      <div className="text-4xl">
-                        {failureReason === 'crashed' ? '💥' : '⚠️'}
-                      </div>
+                    <div className="mx-auto w-24 h-24 bg-purple-100 rounded-full flex items-center justify-center mb-4 shadow-lg shadow-purple-200">
+                      <div className="text-5xl">🤔</div>
                     </div>
-                    <h2 className="text-2xl font-bold text-gray-800 mb-2">Try Again!</h2>
-                    <p className="text-gray-500 mb-6">
-                      {failureReason === 'crashed' ? t.messages?.crashed :
-                        failureReason === 'bounds' ? t.messages?.bounds :
-                          t.messages?.incomplete}
+                    <h2 className="text-3xl font-black text-gray-800 mb-2 tracking-tight">Try Again!</h2>
+                    <p className="text-gray-600 mb-2 font-medium">
+                      {failureReason === 'crashed' && (language === 'km' ? 'មនុស្សយន្តបានជំពប់ទៅនឹងរបាំង' : 'Robot hit an obstacle')}
+                      {failureReason === 'bounds' && (language === 'km' ? 'មនុស្សយន្តបានដើរចេញពីតំបន់' : 'Robot went out of bounds')}
+                      {failureReason === 'incomplete' && (language === 'km' ? 'មិនទាន់ឈានដល់គោលដៅ' : 'Didn\'t reach the goal yet')}
+                    </p>
+                    <p className="text-sm text-gray-500 mb-6 bg-purple-50 py-2 px-4 rounded-lg border border-purple-100">
+                      {failureReason === 'crashed' && '💡 Try adding a jump command to leap over obstacles!'}
+                      {failureReason === 'bounds' && '💡 Check your path - the robot needs to stay on the grid!'}
+                      {failureReason === 'incomplete' && '💡 Almost there! Add more commands to reach the goal!'}
                     </p>
                     <button
                       onClick={() => {
                         setShowResultModal(false);
                         resetGame();
                       }}
-                      className="w-full py-3 bg-gray-900 text-white hover:bg-gray-800 rounded-xl font-bold shadow-lg transition-all flex items-center justify-center gap-2"
+                      className="w-full py-3.5 bg-gradient-to-r from-purple-500 to-blue-600 hover:from-purple-600 hover:to-blue-700 text-white rounded-xl font-bold shadow-lg shadow-purple-200 transform transition-transform hover:scale-[1.02] active:scale-95"
                     >
-                      <RotateCcw size={18} />
-                      <span>Retry</span>
+                      🚀 Try Again
                     </button>
                   </>
                 )}

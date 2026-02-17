@@ -1,14 +1,15 @@
 {
     "compilerOptions": {
         "target": "ESNext",
-        "module": "commonjs",
+        "module": "NodeNext",
+        "moduleResolution": "NodeNext",
         "outDir": "../dist-electron",
         "rootDir": ".",
         "strict": true,
         "esModuleInterop": true
     },
     "include": [
-        "main.ts",
-        "preload.ts"
+        "main.cts",
+        "preload.cts"
     ]
 }
