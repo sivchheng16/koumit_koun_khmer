@@ -1,5 +1,5 @@
 import React, { useMemo } from 'react';
-import { BrainCircuit, RotateCcw, Languages, Play, Star, Lock } from 'lucide-react';
+import { BrainCircuit, RotateCcw, Languages, Play, Star, Lock, GraduationCap } from 'lucide-react';
 import { LevelConfig, Language } from '../types';
 import { TRANSLATIONS } from '../constants';
 
@@ -11,6 +11,8 @@ interface HomePageProps {
     initialLevels: LevelConfig[];
     onLevelSelect: (level: LevelConfig) => void;
     nextPlayableLevel: LevelConfig;
+    isTutorialCompleted: boolean;
+    onStartTutorial: () => void;
 }
 
 const HomePage: React.FC<HomePageProps> = ({
@@ -21,6 +23,8 @@ const HomePage: React.FC<HomePageProps> = ({
     initialLevels,
     onLevelSelect,
     nextPlayableLevel,
+    isTutorialCompleted,
+    onStartTutorial,
 }) => {
     const t = TRANSLATIONS[language];
     const totalStars = Object.values(levelProgress).reduce((a: number, b: number) => a + b, 0);
@@ -54,11 +58,20 @@ const HomePage: React.FC<HomePageProps> = ({
 
                 <div className="flex items-center gap-2">
                     <button
+                        onClick={onStartTutorial}
+                        className="flex items-center gap-2 px-4 py-2 bg-indigo-50 text-indigo-600 hover:bg-indigo-100 border border-indigo-100 rounded-full transition-all text-sm font-bold"
+                    >
+                        <GraduationCap className="w-4 h-4" />
+                        <span>{language === 'km' ? 'រៀនលេង (Tutorial)' : 'Tutorial'}</span>
+                    </button>
+
+                    <button
                         onClick={onResetProgress}
-                        className="p-2 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-full transition-colors"
+                        className="px-4 py-2 text-gray-400 bg-red-50 hover:text-red-500 hover:bg-red-100 border-red-100 border hover:border-red-100 rounded-full transition-colors flex items-center justify-center gap-2 text-sm"
                         title={language === 'km' ? 'លុបការរក្សាទុក' : 'Reset Progress'}
                     >
                         <RotateCcw className="w-4 h-4" />
+                        {language === 'km' ? 'លុបការរក្សាទុក' : 'Reset Progress'}
                     </button>
 
                     <button
@@ -74,53 +87,117 @@ const HomePage: React.FC<HomePageProps> = ({
             {/* Main Content */}
             <main className="flex-1 max-w-5xl mx-auto w-full pb-12">
 
-                {/* Hero Section: Continue & Stats */}
-                <div className="grid md:grid-cols-2 gap-6 mb-10">
-                    <div className="bg-gradient-to-br from-indigo-600 to-purple-700 rounded-3xl p-8 text-white shadow-xl shadow-purple-200 flex flex-col justify-between relative overflow-hidden group">
-                        <div className="absolute top-0 right-0 w-64 h-64 bg-white/10 rounded-full blur-3xl -translate-y-1/2 translate-x-1/2 group-hover:bg-white/20 transition-colors"></div>
+                {/* Hero Section */}
+                {!isTutorialCompleted ? (
+                    /* Full-width Welcome Banner for new users */
+                    <div className="mb-10">
+                        <div className="bg-gradient-to-br from-indigo-600 via-purple-600 to-blue-700 rounded-3xl p-10 text-white shadow-2xl shadow-purple-300 relative overflow-hidden group">
+                            <div className="absolute top-0 right-0 w-96 h-96 bg-white/10 rounded-full blur-3xl -translate-y-1/2 translate-x-1/3 group-hover:bg-white/20 transition-colors"></div>
+                            <div className="absolute bottom-0 left-0 w-64 h-64 bg-blue-400/10 rounded-full blur-3xl translate-y-1/2 -translate-x-1/4"></div>
 
-                        <div>
-                            <h2 className="text-3xl font-black mb-2">{language === 'km' ? 'បន្តការផ្សងព្រេង' : 'Continue Adventure'}</h2>
-                            <p className="opacity-90 mb-6 text-lg">{t.level} {nextPlayableLevel.id}</p>
+                            <div className="relative z-10 flex flex-col md:flex-row items-center gap-8">
+                                {/* Robot illustration */}
+                                <div className="w-28 h-28 bg-white/15 backdrop-blur-sm rounded-3xl flex items-center justify-center shadow-lg border border-white/20 shrink-0">
+                                    <span className="text-6xl animate-bounce" style={{ animationDuration: '2s' }}>🤖</span>
+                                </div>
+
+                                <div className="flex-1 text-center md:text-left">
+                                    <h2 className="text-4xl font-black mb-3 tracking-tight">
+                                        {language === 'km' ? (
+                                            <div className="flex items-center gap-2">
+                                                <span className="text-4xl font-black tracking-tight">សូមស្វាគមន៍</span>
+                                                <span className="text-4xl wave">
+                                                    👋
+                                                </span>
+                                            </div>) : (
+                                            <div className="flex items-center gap-2">
+                                                <span className="text-4xl font-black tracking-tight">Welcome</span>
+                                                <span className="text-4xl wave">
+                                                    👋
+                                                </span>
+                                            </div>)}
+                                    </h2>
+                                    <p className="text-lg opacity-90 mb-6 max-w-lg">
+                                        {language === 'km'
+                                            ? 'តោះរៀនបញ្ជាមនុស្សយន្តរបស់អ្នក! ចាប់ផ្តើមជាមួយមេរៀនណែនាំដើម្បីស្វែងយល់ពីមូលដ្ឋានគ្រឹះ។'
+                                            : "Let's teach your robot its first steps! Start with the tutorial to learn the basics of coding."
+                                        }
+                                    </p>
+                                    <button
+                                        onClick={onStartTutorial}
+                                        className="bg-white text-purple-700 px-8 py-4 rounded-2xl font-bold text-lg shadow-lg hover:shadow-2xl hover:scale-105 transition-all flex items-center gap-3 mx-auto md:mx-0 animate-pulse hover:animate-none ring-4 ring-white/30"
+                                    >
+                                        <GraduationCap className="w-6 h-6" />
+                                        {language === 'km' ? '▶ ចាប់ផ្តើមរៀន (Tutorial)' : '▶ Start Tutorial'}
+                                    </button>
+                                </div>
+                            </div>
                         </div>
-
-                        <button
-                            onClick={() => onLevelSelect(nextPlayableLevel)}
-                            className="bg-white text-purple-700 px-6 py-4 rounded-xl font-bold text-lg shadow-lg hover:shadow-xl hover:scale-105 transition-all flex items-center gap-3 w-max"
-                        >
-                            <Play className="fill-current w-5 h-5" />
-                            {language === 'km' ? 'លេងបន្ត' : 'Play Next Level'}
-                        </button>
                     </div>
+                ) : (
+                    /* Normal 2-column layout for returning users */
+                    <div className="grid md:grid-cols-2 gap-6 mb-10">
+                        <div className="bg-gradient-to-br from-indigo-600 to-purple-700 rounded-3xl p-8 text-white shadow-xl shadow-purple-200 flex flex-col justify-between relative overflow-hidden group">
+                            <div className="absolute top-0 right-0 w-64 h-64 bg-white/10 rounded-full blur-3xl -translate-y-1/2 translate-x-1/2 group-hover:bg-white/20 transition-colors"></div>
 
-                    <div className="bg-white rounded-3xl p-8 shadow-sm border border-gray-100 flex flex-col justify-center gap-6">
-                        <div>
-                            <div className="flex justify-between items-end mb-2">
-                                <span className="font-bold text-gray-500 uppercase tracking-wider text-xs">Total Progress</span>
-                                <span className="font-black text-2xl text-gray-800">{Object.keys(levelProgress).length} / 100</span>
-                            </div>
-                            <div className="h-4 bg-gray-100 rounded-full overflow-hidden">
-                                <div
-                                    className="h-full bg-gradient-to-r from-blue-500 to-purple-500 rounded-full transition-all duration-1000"
-                                    style={{ width: `${(Object.keys(levelProgress).length / 100) * 100}%` }}
-                                ></div>
-                            </div>
-                        </div>
-
-                        <div className="flex items-center gap-4">
-                            <div className="p-4 bg-yellow-50 rounded-2xl">
-                                <Star className="w-8 h-8 text-yellow-500 fill-yellow-500" />
-                            </div>
                             <div>
-                                <div className="text-3xl font-black text-gray-800">{totalStars}</div>
-                                <div className="text-sm font-medium text-gray-400">Stars Earned</div>
+                                <h2 className="text-3xl font-black mb-2">
+                                    {language === 'km' ? 'បន្តមេរៀន' : 'Continue Lesson'}
+                                </h2>
+                                <p className="opacity-90 mb-6 text-lg">
+                                    {`${t.level} ${nextPlayableLevel.id}`}
+                                </p>
+                            </div>
+
+                            <button
+                                onClick={() => onLevelSelect(nextPlayableLevel)}
+                                className="bg-white text-purple-700 px-6 py-4 rounded-xl font-bold text-lg shadow-lg hover:shadow-xl hover:scale-105 transition-all flex items-center gap-3 w-max"
+                            >
+                                <Play className="fill-current w-5 h-5" />
+                                {language === 'km' ? 'លេងកម្រិតបន្ទាប់' : 'Play Next Level'}
+                            </button>
+                        </div>
+
+                        <div className="bg-white rounded-3xl p-8 shadow-sm border border-gray-100 flex flex-col justify-center gap-6">
+                            <div>
+                                <div className="flex justify-between items-end mb-2">
+                                    <span className="font-bold text-gray-500 uppercase tracking-wider text-xs">{language === 'km' ? 'សរុបមេរៀន' : 'Total Progress'}</span>
+                                    <span className="font-black text-2xl text-gray-800">{Object.keys(levelProgress).filter(id => Number(id) > 0).length} / 100</span>
+                                </div>
+                                <div className="h-4 bg-gray-100 rounded-full overflow-hidden">
+                                    <div
+                                        className="h-full bg-gradient-to-r from-blue-500 to-purple-500 rounded-full transition-all duration-1000"
+                                        style={{ width: `${(Object.keys(levelProgress).filter(id => Number(id) > 0).length / 100) * 100}%` }}
+                                    ></div>
+                                </div>
+                            </div>
+
+                            <div className="flex items-center gap-4">
+                                <div className="p-4 bg-yellow-50 rounded-2xl">
+                                    <Star className="w-8 h-8 text-yellow-500 fill-yellow-500" />
+                                </div>
+                                <div>
+                                    <div className="text-3xl font-black text-gray-800">{totalStars}</div>
+                                    <div className="text-sm font-medium text-gray-400">Stars Earned</div>
+                                </div>
                             </div>
                         </div>
                     </div>
-                </div>
+                )}
 
                 {/* Level Grid Sections */}
-                <div className="space-y-8">
+                <div className={`space-y-8 relative ${!isTutorialCompleted ? 'opacity-40 pointer-events-none select-none' : ''}`}>
+                    {/* Overlay message when tutorial not completed */}
+                    {!isTutorialCompleted && (
+                        <div className="absolute inset-0 z-10 flex items-start justify-center pt-8 pointer-events-none">
+                            <div className="bg-white/90 backdrop-blur-sm px-6 py-3 rounded-2xl shadow-lg border border-gray-200 pointer-events-auto">
+                                <p className="text-gray-600 font-bold text-sm flex items-center gap-2">
+                                    <Lock className="w-4 h-4 text-gray-400" />
+                                    {language === 'km' ? 'បញ្ចប់មេរៀនណែនាំដើម្បីចាប់ផ្តើមដំណើរផ្សងព្រេង!' : 'Complete the tutorial to start your adventure!'}
+                                </p>
+                            </div>
+                        </div>
+                    )}
                     {levelGroups.map((group, groupIdx) => {
                         const groupLevels = initialLevels.filter(l => l.id >= group.range[0] && l.id <= group.range[1]);
 
@@ -143,8 +220,8 @@ const HomePage: React.FC<HomePageProps> = ({
                                     {groupLevels.map((level) => {
                                         const stars = levelProgress[level.id];
                                         const isCompleted = stars !== undefined;
-                                        const isLocked = false;
-                                        // const isLocked = level.id !== 1 && !levelProgress[level.id - 1];
+                                        // const isLocked = false;
+                                        const isLocked = level.id !== 1 && !levelProgress[level.id - 1];
                                         const isNext = !isLocked && !isCompleted;
 
                                         return (

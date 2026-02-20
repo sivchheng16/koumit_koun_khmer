@@ -13,9 +13,22 @@
 
 <body class="bg-blue-50 text-gray-900">
   <div id="root">
-    <h1>HTML Loaded - Waiting for React...</h1>
+    <div id="loadingScreen" class="fixed inset-0 bg-black flex items-center justify-center z-50">
+      <div class="text-center">
+        <div class="inline-block h-12 w-12 border-4 border-t-blue-500 border-gray-200 rounded-full animate-spin"></div>
+        <p class="mt-4 text-white text-lg font-medium">Loading...</p>
+      </div>
+    </div>
+
   </div>
+
   <script type="module" src="/src/index.tsx"></script>
+  <script>
+    // Simulate loading delay (e.g., 3 seconds)
+    setTimeout(() => {
+      document.getElementById('loadingScreen').style.display = 'none';
+    }, 3000);
+  </script>
 </body>
 
 

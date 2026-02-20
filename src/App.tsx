@@ -126,7 +126,7 @@ const App: React.FC = () => {
     const hasVisited = localStorage.getItem('koumnit_visited');
     if (!hasVisited) {
       setCurrentLevel(tutorialLevel);
-      setView(AppView.Game);
+      setView(AppView.Menu);
       localStorage.setItem('koumnit_visited', 'true');
     }
   }, []);
@@ -148,18 +148,21 @@ const App: React.FC = () => {
   };
 
   const handleLevelComplete = (levelId: number, stars: number) => {
-    if (levelId !== 0) {
-      setLevelProgress(prev => {
-        const currentStars = prev[levelId] || 0;
-        return {
-          ...prev,
-          [levelId]: Math.max(currentStars, stars)
-        };
-      });
-    }
+    setLevelProgress(prev => {
+      const currentStars = prev[levelId] || 0;
+      return {
+        ...prev,
+        [levelId]: Math.max(currentStars, stars)
+      };
+    });
   };
 
   const handleNextLevel = () => {
+    // After tutorial, return to home page instead of auto-advancing
+    if (currentLevel.id === 0) {
+      setView(AppView.Menu);
+      return;
+    }
     const nextId = currentLevel.id + 1;
     const nextLevel = initialLevels.find(l => l.id === nextId);
 
@@ -170,13 +173,17 @@ const App: React.FC = () => {
     }
   };
 
-  // Find the next level to play (highest unlocked)
+  // Find the next level to play (tutorial first, then game levels)
+  const isTutorialCompleted = levelProgress[0] !== undefined;
   const nextPlayableLevel = useMemo(() => {
-    const completedIds = Object.keys(levelProgress).map(Number);
+    // If tutorial hasn't been completed, suggest tutorial first
+    if (!isTutorialCompleted) return tutorialLevel;
+    // Otherwise, find next game level
+    const completedIds = Object.keys(levelProgress).map(Number).filter(id => id > 0);
     if (completedIds.length === 0) return initialLevels[0];
     const maxId = Math.max(...completedIds);
     return initialLevels.find(l => l.id === maxId + 1) || initialLevels.find(l => l.id === maxId) || initialLevels[0];
-  }, [levelProgress, initialLevels]);
+  }, [levelProgress, initialLevels, isTutorialCompleted, tutorialLevel]);
 
   const totalStars = Object.values(levelProgress).reduce((a: number, b: number) => a + b, 0);
 
@@ -209,6 +216,11 @@ const App: React.FC = () => {
             initialLevels={initialLevels}
             onLevelSelect={handleLevelSelect}
             nextPlayableLevel={nextPlayableLevel}
+            isTutorialCompleted={isTutorialCompleted}
+            onStartTutorial={() => {
+              setCurrentLevel(tutorialLevel);
+              setView(AppView.Game);
+            }}
           />
 
           {selectedLevel && (
